@@ -331,8 +331,8 @@ class PackageSourceUpdateService {
                                                     skipInvalid,
                                                     deleteMissing,
                                                     job,
-                                                    title_id_ns_serial,
-                                                    title_id_ns_monograph)
+                                                    title_ns_serial_id,
+                                                    title_ns_mono_id)
 
         if (hasOpenIssues(pid, async, result)) {
           log.info("There were issues with the automated job (valid: ${result.validation?.valid}, reviews: ${result.report?.reviews}${!async ? ', matching reviews: '  + result.matchingJob?.reviews : ''}), keeping listStatus in progress..")
@@ -366,8 +366,8 @@ class PackageSourceUpdateService {
                                             skipInvalid,
                                             deleteMissing,
                                             j,
-                                            title_id_ns_serial,
-                                            title_id_ns_monograph)
+                                            title_ns_serial_id,
+                                            title_ns_mono_id)
         }
 
         if (preferred_group) {

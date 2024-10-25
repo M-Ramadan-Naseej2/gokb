@@ -131,15 +131,51 @@ class PackageTestSpec extends AbstractAuthSpec {
   }
 
   def cleanup() {
-    ['TestPackJournalTIPP', 'TestJournalTIPPUpdate', 'TestJournalTIPPInit', 'TestJournalTIPPInitRetired', 'TestPackBookTIPP', 'TestBookTIPPUpdate', 'TestBookTIPPInit', 'TestJournalTIPPSkip', 'TIPP Name', 'Journal of agricultural and food chemistry', 'Book of agricultural and food chemistry'].each {
+    [
+      'TestPackJournalTIPP',
+      'TestJournalTIPPUpdate',
+      'TestJournalTIPPInit',
+      'TestJournalTIPPInitRetired',
+      'TestPackBookTIPP',
+      'TestBookTIPPUpdate',
+      'TestBookTIPPInit',
+      'TestJournalTIPPSkip',
+      'TIPP Name',
+      'Journal of agricultural and food chemistry',
+      'Book of agricultural and food chemistry'
+    ].each {
       TitleInstancePackagePlatform.findByName(it)?.expunge()
     }
-    ["TestPack","UpdPack","TestPackageWithTipps","TestPackageWithProviderAndPlatform", "TestPackHandleUrl", "TestPackPartialError"].each {
+
+    [
+      "TestPack",
+      "UpdPack",
+      "TestPackageWithTipps",
+      "TestPackageWithProviderAndPlatform",
+      "TestPackHandleUrl",
+      "TestPackPartialError"
+    ].each {
       Package.findByName(it)?.expunge()
     }
-    ['PackTestTitle', 'PackTestBook', 'TestPackJournalTIPP', 'TestJournalTIPPUpdate', 'TestJournalTIPPInit', 'TestJournalTIPPInitRetired', 'TestPackBookTIPP', 'TestBookTIPPUpdate', 'TestBookTIPPInit', 'TestJournalTIPPSkip', 'TIPP Name', 'Journal of agricultural and food chemistry', 'Book of agricultural and food chemistry'].each {
+
+    [
+      'PackTestTitle',
+      'PackTestBook',
+      'TestPackJournalTIPP',
+      'TestJournalTIPPUpdate',
+      'TestJournalTIPPInit',
+      'TestJournalTIPPInitRetired',
+      'TestPackBookTIPP',
+      'TestBookTIPPUpdate',
+      'TestBookTIPPInit',
+      'TestJournalTIPPSkip',
+      'TIPP Name',
+      'Journal of agricultural and food chemistry',
+      'Book of agricultural and food chemistry'
+    ].each {
       TitleInstance.findByName(it)?.expunge()
     }
+
     CuratoryGroup.findByName("cgtest1")?.expunge()
     Platform.findByName("PackTestPlt")?.expunge()
     Platform.findByName("dx.doi.org")?.expunge()
