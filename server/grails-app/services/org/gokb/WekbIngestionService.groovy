@@ -98,6 +98,7 @@ class WekbIngestionService {
                 if (tipp.status == 'Deleted') {
                     //in der WEKB gelöschte Titel werden nicht importiert
                     log.debug("Title is deleted --> SKIP")
+                    result.report.skipped++
                     continue
                 }
 

@@ -80,10 +80,10 @@ class PackageSourceUpdateService {
         job.startTime = new Date()
       }
 
-      isWekbImportOrUpdate = pkg_source?.type?.equalsIgnoreCase("WEKB")
+      isWekbImportOrUpdate = pkg_source?.importConfig?.value == "WEKB"
       if ( isWekbImportOrUpdate ) {
         log.debug("... start WekbIngestionService ...")
-        wekbIngestionService.startTitleImport(pkgInfo, pkg_source, pkg_plt, pkg_prov, title_ns, p)
+        result.report = wekbIngestionService.startTitleImport(pkgInfo, pkg_source, pkg_plt, pkg_prov, title_ns, p)
 
       } else {
         if (pkg_source?.url) {
