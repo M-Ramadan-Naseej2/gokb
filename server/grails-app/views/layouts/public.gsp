@@ -15,6 +15,7 @@
     <asset:stylesheet src="gokb/themes/${ grailsApplication.config.getProperty('gokb.theme') }/theme.css"/>
     <asset:stylesheet src="gokb/fontawesome.css" />
     <asset:stylesheet src="gokb/application.css"/>
+    <asset:stylesheet src="gokb/gokb-brand.css"/>
 
     <title><g:layoutTitle default="GOKb: Welcome" /></title>
 </head>
@@ -22,25 +23,24 @@
 <body id="page-body" class="theme-${ grailsApplication.config.getProperty('gokb.theme') }">
 
   <nav class="navbar navbar-default" id="primary-nav-bar" role="navigation">
-     <div class="container">
-       <!-- Brand and toggle get grouped for better mobile display -->
-       <div class="navbar-header">
-         <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#primary-nav">
-           <span class="sr-only">Toggle navigation</span>
-           <span class="icon-bar"></span>
-           <span class="icon-bar"></span>
-           <span class="icon-bar"></span>
-         </button>
-         <!-- navbar-brand is hidden on larger screens, but visible when the menu is collapsed -->
-         <a class="navbar-brand" href="${grailsApplication.config.getProperty('server.contextPath') ?: ''}/" style="font-weight:bold;">
-          <g:message code="gokb.appname" default="GOKb" />
-          <g:if test="${grailsApplication.config.getProperty('gokb.instance.description')}">
-            – ${grailsApplication.config.getProperty('gokb.instance.description')}
-          </g:if>
-         </a>
-       </div>
+      <!-- Brand and toggle get grouped for better mobile display -->
+      <div class="navbar-header">
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#primary-nav">
+          <span class="sr-only">Toggle navigation</span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        <!-- navbar-brand is hidden on larger screens, but visible when the menu is collapsed -->
+        <a class="navbar-brand" href="${grailsApplication.config.getProperty('server.contextPath') ?: ''}/">
+        <g:message code="gokb.appname" default="GOKb" />
+        <g:if test="${grailsApplication.config.getProperty('gokb.instance.description')}">
+          – ${grailsApplication.config.getProperty('gokb.instance.description')}
+        </g:if>
+        </a>
+      </div>
 
-       <div class="nav navbar-nav navbar-right">
+      <div class="nav navbar-nav navbar-right">
           <g:if test="${grailsApplication.config.getProperty('gokb.blogUrl')}">
             <li><a  style="font-weight:bold;" href ="${grailsApplication.config.getProperty('gokb.blogUrl')}">About GOKb</a></li>
           </g:if>
@@ -51,9 +51,7 @@
           <g:if test="${grailsApplication.config.getProperty('gokb.uiUrl')}">
             <li><a style="font-weight:bold;" href ="${grailsApplication.config.getProperty('gokb.uiUrl')}">GOKb Client</a></li>
           </g:if>
-       </div>
-
-     </div>
+      </div>
    </nav>
 
 
