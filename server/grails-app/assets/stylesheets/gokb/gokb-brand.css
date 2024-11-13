@@ -5,12 +5,7 @@ html * {
 }
 
 .navbar-default {
-  background-color: #a5141b;
   height: 64px;
-}
-
-.navbar-default .navbar-nav > li > a:hover {
-  background-color: #830007;
 }
 
 .navbar-header {

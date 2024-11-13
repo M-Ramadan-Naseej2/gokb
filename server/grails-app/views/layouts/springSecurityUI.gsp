@@ -30,7 +30,7 @@
           <span  class="icon-bar"></span>
         </button>
         <g:link uri="/" class="navbar-brand" style="font-weight:bold;">
-          <g:message code="gokb.appname" default="GOKb"/> v<g:meta name="info.app.version" />
+          ${grailsApplication.config.getProperty('gokb.appname') ?: 'GOKB'} v<g:meta name="info.app.version" />
           <g:if test="${grailsApplication.config.getProperty('gokb.instance.description')}">
             – ${grailsApplication.config.getProperty('gokb.instance.description')}
           </g:if>

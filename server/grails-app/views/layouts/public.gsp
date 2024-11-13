@@ -17,12 +17,12 @@
     <asset:stylesheet src="gokb/application.css"/>
     <asset:stylesheet src="gokb/gokb-brand.css"/>
 
-    <title><g:layoutTitle default="GOKb: Welcome" /></title>
+    <title><g:layoutTitle default="GOKB: Welcome" /></title>
 </head>
 
 <body id="page-body" class="theme-${ grailsApplication.config.getProperty('gokb.theme') }">
 
-  <nav class="navbar navbar-default" id="primary-nav-bar" role="navigation">
+  <nav class="navbar navbar-default" id="primary-nav-bar" role="navigation" style="background-color:${grailsApplication.config.getProperty('gokb.themeColor')}">
       <!-- Brand and toggle get grouped for better mobile display -->
       <div class="navbar-header">
         <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#primary-nav">
@@ -33,10 +33,10 @@
         </button>
         <!-- navbar-brand is hidden on larger screens, but visible when the menu is collapsed -->
         <a class="navbar-brand" href="${grailsApplication.config.getProperty('server.contextPath') ?: ''}/">
-        <g:message code="gokb.appname" default="GOKb" />
-        <g:if test="${grailsApplication.config.getProperty('gokb.instance.description')}">
-          – ${grailsApplication.config.getProperty('gokb.instance.description')}
-        </g:if>
+          ${grailsApplication.config.getProperty('gokb.appname') ?: 'GOKB'}
+          <g:if test="${grailsApplication.config.getProperty('gokb.instance.description')}">
+            – ${grailsApplication.config.getProperty('gokb.instance.description')}
+          </g:if>
         </a>
       </div>
 
@@ -63,6 +63,17 @@
         <div class="container">
             <div class="row">
                 <div class="col-lg-12 text-center">
+                  <span>
+                    <a href="https://gokb.org/accessibility.html">Accessibility</a>
+                  </span>
+                  |
+                  <span>
+                    <a href="https://gokb.org/contact/privacypolicy.html"> Privacy Policy </a>
+                  </span>
+                  |
+                  <span>
+                    <a href="https://gokb.org/contact/imprint.html"> Imprint </a>
+                  </span>
                 </div>
             </div>
         </div>
