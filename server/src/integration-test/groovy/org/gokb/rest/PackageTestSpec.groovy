@@ -43,6 +43,8 @@ class PackageTestSpec extends AbstractAuthSpec {
     Identifier book_isbn = Identifier.findByValueAndNamespace('978-3-16-148410-0', IdentifierNamespace.findByValue('isbn')) ?: new Identifier(value: '978-3-16-148410-0', namespace: IdentifierNamespace.findByValue('isbn'))
     Identifier serial_issn = Identifier.findByValueAndNamespace('0020-0255', IdentifierNamespace.findByValue('issn')) ?: new Identifier(value: '0020-0255', namespace: IdentifierNamespace.findByValue('issn'))
     Identifier serial_eissn = Identifier.findByValueAndNamespace('1872-6291', IdentifierNamespace.findByValue('eissn')) ?: new Identifier(value: '1872-6291', namespace: IdentifierNamespace.findByValue('eissn'))
+    IdentifierNamespace testJournalNs = IdentifierNamespace.findByValue('testj') ?: new IdentifierNamespace(value: 'testj').save(flush: true)
+    IdentifierNamespace testMonoNs = IdentifierNamespace.findByValue('testm') ?: new IdentifierNamespace(value: 'testm').save(flush: true)
     Platform handlePlt = Platform.findByName("dx.doi.org") ?: new Platform(name: "dx.doi.org", primaryUrl: "http://dx.doi.org/", status: RefdataCategory.lookup('KBComponent.Status', 'Deleted')).save(flush: true)
     Platform testPlt = Platform.findByName("PackTestPlt") ?: new Platform(name: "PackTestPlt").save(flush: true)
     Org testOrg = Org.findByName("PackTestOrg") ?: new Org(name: "PackTestOrg").save(flush: true)
@@ -137,6 +139,8 @@ class PackageTestSpec extends AbstractAuthSpec {
       'TestJournalTIPPInit',
       'TestJournalTIPPInitRetired',
       'TestPackBookTIPP',
+      'TestPackMixedJournal',
+      'TestPackMixedBook',
       'TestBookTIPPUpdate',
       'TestBookTIPPInit',
       'TestJournalTIPPSkip',
@@ -166,6 +170,8 @@ class PackageTestSpec extends AbstractAuthSpec {
       'TestJournalTIPPInit',
       'TestJournalTIPPInitRetired',
       'TestPackBookTIPP',
+      'TestPackMixedJournal',
+      'TestPackMixedBook',
       'TestBookTIPPUpdate',
       'TestBookTIPPInit',
       'TestJournalTIPPSkip',
@@ -582,5 +588,39 @@ class PackageTestSpec extends AbstractAuthSpec {
     TitleInstancePackagePlatform.findByName('TestBookTIPPUpdate')?.accessStartDate != null
     TitleInstancePackagePlatform.findByName('TestBookTIPPInit')?.accessEndDate != null
     TitleInstancePackagePlatform.findByName('TestBookTIPPInit')?.status?.value == 'Retired'
+  }
+
+
+  void "test /rest/packages/<id>/ingest with mixed package and separate namespaces"() {
+    given:
+    def urlPath = getUrlPath()
+    Resource kbart_file = new ClassPathResource("/test_rest_mixed_valid_separate_namespaces.txt")
+    Package pkg = Package.findByName("TestPack")
+    IdentifierNamespace testJournalNs = IdentifierNamespace.findByValue('testj')
+    IdentifierNamespace testMonoNs = IdentifierNamespace.findByValue('testm')
+
+    when:
+    String accessToken = getAccessToken()
+    MultipartBody requestBody = MultipartBody.builder()
+      .addPart(
+        "submissionFile",
+        "test_rest_initial_no_access.txt",
+        MediaType.TEXT_PLAIN_TYPE,
+        kbart_file.getFile()
+      )
+      .addPart('async', 'false')
+      .addPart('titleIdSerial', "${testJournalNs.id}")
+      .addPart('titleIdMonograph', "${testMonoNs.id}")
+      .build()
+
+    HttpRequest request = HttpRequest.POST("${urlPath}/rest/packages/${pkg.id}/ingest", requestBody)
+      .bearerAuth(accessToken)
+      .contentType(MediaType.MULTIPART_FORM_DATA_TYPE)
+    HttpResponse resp = http.exchange(request, Map)
+
+    then:
+    resp.status == HttpStatus.OK
+    TitleInstancePackagePlatform.findByName('TestPackMixedJournal')?.ids.find { it.namespace == testJournalNs }
+    TitleInstancePackagePlatform.findByName('TestPackMixedBook')?.ids.find { it.namespace == testMonoNs }
   }
 }
