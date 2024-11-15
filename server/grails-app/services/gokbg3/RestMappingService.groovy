@@ -1099,6 +1099,7 @@ class RestMappingService {
 
       if (!result.errors) {
         pubs_to_add.each { publisher ->
+          def new_items = []
           boolean found = false
           for (int i = 0; !found && i < publisher_combos.size(); i++) {
             Combo pc = publisher_combos[i]
@@ -1110,14 +1111,16 @@ class RestMappingService {
           }
 
           if (!found) {
-            obj.publisher << publisher
-            obj.save(flush: true)
+            new_items << publisher
             result.changed = true
           }
           else {
             log.debug "Publisher ${publisher.name} already set against '${obj.name}'"
           }
         }
+
+        obj.publisher.addAll(new_items)
+        obj.save(flush: true)
       }
 
       if (remove && !result.errors) {
