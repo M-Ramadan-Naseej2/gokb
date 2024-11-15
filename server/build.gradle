@@ -74,7 +74,7 @@ dependencies {
     implementation "org.grails.plugins:async"
     implementation "org.grails.plugins:scaffolding"
     implementation "org.grails.plugins:events"
-    implementation("org.quartz-scheduler:quartz:2.3.2") {
+    implementation("org.quartz-scheduler:quartz:2.4.0") {
         exclude group: 'slf4j-api', module: 'c3p0'
     }
     implementation "org.grails.plugins:quartz:3.0.0"
@@ -94,14 +94,9 @@ dependencies {
     implementation 'org.grails.plugins:spring-security-acl:4.0.0.M2'
     implementation 'org.grails.plugins:spring-security-ui:4.0.0.M1'
     implementation 'com.bertramlabs.plugins:asset-pipeline-grails:4.5.1'
-    implementation 'org.grails.plugins:spring-security-rest:3.0.1'
-    implementation 'net.minidev:json-smart:2.5.1'
-    implementation 'org.bouncycastle:bcprov-jdk15on:1.70'
-    implementation 'com.google.guava:guava:33.3.1-jre'
+    implementation 'org.grails.plugins:spring-security-rest:5.0.0'
     implementation 'commons-fileupload:commons-fileupload:1.5'
-    implementation 'org.pac4j:pac4j-core:5.7.7'
 
-    implementation 'org.apache.httpcomponents:httpcore:4.4.16'
     implementation 'commons-io:commons-io:2.13.0'
     implementation 'org.apache.commons:commons-compress:1.23.0'
     implementation 'commons-validator:commons-validator:1.7'
