@@ -251,6 +251,8 @@ class FTUpdateService {
         result.publisherUuid = current_pub?.uuid ?: ""
         result.editionStatement = kbc.editionStatement ?: ""
         result.volumeNumber = kbc.volumeNumber ?: ""
+        result.firstAuthor = kbc.firstAuthor ?: ""
+        result.firstEditor = kbc.firstEditor ?: ""
 
         if (kbc.publishedFrom) result.publishedFrom = dateFormatService.formatDate(kbc.publishedFrom)
         if (kbc.publishedTo) result.publishedTo = dateFormatService.formatDate(kbc.publishedTo)
