@@ -1098,8 +1098,9 @@ class RestMappingService {
       }
 
       if (!result.errors) {
+        def new_items = []
+
         pubs_to_add.each { publisher ->
-          def new_items = []
           boolean found = false
           for (int i = 0; !found && i < publisher_combos.size(); i++) {
             Combo pc = publisher_combos[i]
