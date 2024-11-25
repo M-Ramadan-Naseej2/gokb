@@ -504,6 +504,14 @@ class AdminController {
     render(view: "logViewer", model: logViewer())
   }
 
+  def closeAllOrphanedReviews() {
+    def result = [result: 'OK']
+
+    result.total = cleanupService.closeOrphanedReviews()
+
+    render result as JSON
+  }
+
   def setupAcl() {
 
     def default_dcs = ["BookInstance", "JournalInstance", "TitleInstancePackagePlatform", "DatabaseInstance", "Office", "Imprint", "Package", "ReviewRequest", "Org", "Platform", "Source", "KBComponentVariantName", "TitleInstancePlatform", "TIPPCoverageStatement"]
