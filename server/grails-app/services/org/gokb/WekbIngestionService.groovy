@@ -4,6 +4,7 @@ import com.k_int.ConcurrencyManagerService
 import grails.converters.JSON
 import grails.gorm.transactions.Transactional
 import org.gokb.cred.IdentifierNamespace
+import org.gokb.cred.JobResult
 import org.gokb.cred.KBComponent
 import org.gokb.cred.Org
 import org.gokb.cred.Package
@@ -14,6 +15,7 @@ import org.gokb.cred.Source
 import org.gokb.cred.TIPPCoverageStatement
 import org.gokb.cred.TitleInstance
 import org.gokb.cred.TitleInstancePackagePlatform
+import org.gokb.cred.User
 import org.hibernate.Session
 import org.hibernate.SessionFactory
 
@@ -45,7 +47,8 @@ class WekbIngestionService {
     ConcurrencyManagerService concurrencyManagerService
 
     def startTitleImport (pkgInfo, Source pkg_source, Platform pkg_plt, Org pkg_prov, Long title_ns, org.gokb.cred.Package pkg) {
-        def result = [status: 'ok']
+        def result = [result: 'OK', dryRun: false]
+        result.messages = []
         long startTime = System.currentTimeMillis()
         ingest_systime = startTime
         def ingestDate = LocalDate.now().toString()
@@ -70,7 +73,8 @@ class WekbIngestionService {
                 'where c.fromComponent.id=:pkg and c.toComponent=tipp and tipp.status = :sc',
                 [pkg: pkg.id, sc: RefdataCategory.lookup('KBComponent.Status', 'Current')])[0]
 
-        result.report = [numRows: titleCount, skipped: 0, matched: 0, partial: 0, created: 0, retired: 0, reviews: 0, invalid: 0, previous: old_tipp_count]
+        result.report = [elapsed: 0, averagePerHour: 0, averagePerRow: 0, event: "",
+                         numRows: titleCount, skipped: 0, matched: 0, partial: 0, created: 0, retired: 0, reviews: 0, invalid: 0, previous: old_tipp_count]
 
         if (old_tipp_count > 0) {
             log.debug("OLD TIPPCOUNT: " + old_tipp_count + "  ----> IS UPDATE... ")
@@ -260,10 +264,8 @@ class WekbIngestionService {
         log.debug("start Title Matching... ")
 
         def currentSession = sessionFactory.getCurrentSession()
-        log.debug(" " + currentSession.toString())
         currentSession.flush()
         currentSession.clear()
-
 
         def matching_job = concurrencyManagerService.createJob { mjob ->
             tippService.matchPackage(pkgInfo.id, mjob)
@@ -288,6 +290,7 @@ class WekbIngestionService {
             result.matchingJob = matching_job.uuid
         } */
 
+        result.matchingJob = matching_job.uuid
 
         return result
     }

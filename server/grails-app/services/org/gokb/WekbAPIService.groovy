@@ -192,6 +192,9 @@ class WekbAPIService {
             if(existingProvider.size() > 0) {
                 result.providerExists = true
                 result.providerId = existingProvider.get(0).id
+
+                log.debug("***** EXISTING PROVIDER ****** " + existingProvider.get(0))
+
             } else {
                 result.providerExists = false
             }
