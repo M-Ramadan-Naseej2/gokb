@@ -66,13 +66,18 @@ class PackageServiceSpec extends Specification {
   IdentifierNamespace isbn_ns
 
   Identifier isbn
+  Identifier pisbn
   Identifier issn
   Identifier eissn
   Identifier eissn2
 
-  Package testPkg
   Platform testPlt
   Org testOrg
+  Package testPkg
+
+  BookInstance book
+  JournalInstance journal1
+  JournalInstance journal2
 
   def setup() {
     filePath = packageService.exportFilePath()
@@ -80,6 +85,7 @@ class PackageServiceSpec extends Specification {
     testOrg = Org.findByName('PackageService Test Org') ?: new Org(name: 'PackageService Test Org').save(flush: true)
     testPlt = Platform.findByName('PackageService Test Platform') ?: new Platform(name: 'PackageService Test Platform', provider: testOrg).save(flush: true)
     testPkg = Package.findByName('PackageService Test Package') ?: new Package(name: 'PackageService Test Package', provider: testOrg).save(flush: true)
+
 
     if (!issn_ns) {
       issn_ns = IdentifierNamespace.findByValue('issn')
@@ -91,13 +97,14 @@ class PackageServiceSpec extends Specification {
       isbn_ns = IdentifierNamespace.findByValue('isbn')
     }
 
+    isbn = Identifier.findByNamespaceAndValue(isbn_ns, '979-11-655-6390-5') ?: new Identifier(namespace: isbn_ns, value: '979-11-655-6390-5').save(flush: true)
+    pisbn = Identifier.findByNamespaceAndValue(isbn_ns, '979-11-655-6390-5') ?: new Identifier(namespace: isbn_ns, value: '979-11-655-6390-5').save(flush: true)
     issn = Identifier.findByNamespaceAndValue(issn_ns, '0128-5483') ?: new Identifier(namespace: issn_ns, value: '0128-5483')
     eissn = Identifier.findByNamespaceAndValue(eissn_ns, '2180-4338') ?: new Identifier(namespace: eissn_ns, value: '2180-4338')
     eissn2 = Identifier.findByNamespaceAndValue(eissn_ns, '1727-9445') ?: new Identifier(namespace: eissn_ns, value: '1727-9445')
 
     if (!BookInstance.findByName('PackageService Book 1')) {
-      isbn = new Identifier(namespace: isbn_ns, value: '979-11-655-6390-5').save(flush: true)
-      BookInstance book = new BookInstance(name: 'PackageService Book 1').save(flush:true)
+      book = new BookInstance(name: 'PackageService Book 1').save(flush:true)
       book.ids.add(isbn)
       book.save(flush: true)
 
@@ -144,6 +151,18 @@ class PackageServiceSpec extends Specification {
       tipp.ids.add(isbn)
       tipp.save(flush: true)
     }
+    else {
+      book = BookInstance.findByName('PackageService Book 1')
+    }
+
+    if (!JournalInstance.findByName('PackageService Journal 1')) {
+      journal1 = new JournalInstance(name: 'PackageService Journal 1').save(flush:true)
+      journal1.ids.addAll([issn, eissn])
+      journal1.save(flush: true)
+    }
+    else {
+      journal1 = JournalInstance.findByName('PackageService Journal 1')
+    }
   }
 
 
@@ -157,7 +176,15 @@ class PackageServiceSpec extends Specification {
     ].each {
       TitleInstancePackagePlatform.findByName(it)?.expunge()
     }
-    Package.findByName('PackageService Test Package')?.expunge()
+
+    [
+      'PackageService Test Package',
+      'PackageService Test FirstLine',
+      'PackageService Test AddJournal'
+    ].each {
+      Package.findByName(it)?.expunge()
+    }
+
     Platform.findByName('PackageService Test Platform')?.expunge()
     Org.findByName('PackageService Test Org')?.expunge()
     BookInstance.findByName('PackageService Book 1')?.expunge()
@@ -166,17 +193,23 @@ class PackageServiceSpec extends Specification {
     JournalInstance.findByName('PackageService Journal 2')?.expunge()
   }
 
-  void 'Test caching new TIPP KBART - check header'() {
+  void "Test caching new TIPP KBART - test new file with monograph"() {
     when:
+    def old_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkg, PackageService.ExportType.KBART_TIPP))
+    def old_file = new File(filePath + old_filename)
+
+    if (old_file.isFile()) {
+      assert old_file.delete()
+    }
     sleep(1000)
     packageService.createKbartExport(testPkg)
 
     then:
     sleep(3000)
-    def latest_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkg, PackageService.ExportType.KBART_TIPP))
-    def file = new File(filePath + latest_filename)
+    String latest_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkg, PackageService.ExportType.KBART_TIPP))
+    File file = new File(filePath + latest_filename)
 
-    file.isFile()
+    assert file.isFile()
 
     def csv = packageService.initReader(filePath + latest_filename)
     String[] header = csv.readNext().collect { it.toLowerCase().trim() }
@@ -185,31 +218,6 @@ class PackageServiceSpec extends Specification {
 
     header.each { col ->
       col == packageService.KBART_FIELDS[col_ctr]
-      col_positions[col] = col_ctr++
-    }
-
-    csv.close()
-    file.delete()
-  }
-
-  void "Test caching new TIPP KBART - test lines"() {
-    when:
-    sleep(1000)
-    packageService.createKbartExport(testPkg)
-
-    then:
-    sleep(3000)
-    def latest_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkg, PackageService.ExportType.KBART_TIPP))
-    def file = new File(filePath + latest_filename)
-
-    file.isFile()
-
-    def csv = packageService.initReader(filePath + latest_filename)
-    String[] header = csv.readNext().collect { it.toLowerCase().trim() }
-    def col_positions = [:]
-    int col_ctr = 0
-
-    header.each { col ->
       col_positions[col] = col_ctr++
     }
 
@@ -242,22 +250,21 @@ class PackageServiceSpec extends Specification {
 
     csv.readNext() == null
     csv.close()
-    file.delete()
+    file.delete() == true
   }
 
-  void "Test caching updated TIPP KBART - new TIPPs"() {
+  void "Test caching updated TIPP KBART - new TIPP"() {
     when:
+    String old_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkg, PackageService.ExportType.KBART_TIPP))
+    File old_file = new File(filePath + old_filename)
+
+    if (old_file.isFile()) {
+      assert old_file.delete()
+    }
+
     sleep(1000)
     packageService.createKbartExport(testPkg)
-    sleep(1000)
-
-    JournalInstance journal = new JournalInstance(name: 'PackageService Journal 1').save(flush:true)
-    journal.ids.addAll([issn, eissn])
-    journal.save(flush: true)
-
-    JournalInstance journal2 = new JournalInstance(name: 'PackageService Journal 2').save(flush:true)
-    journal2.ids.addAll([issn, eissn2])
-    journal2.save(flush: true)
+    sleep(3000)
 
     def tipp1_map = [
       pkg: testPkg.id,
@@ -291,53 +298,17 @@ class PackageServiceSpec extends Specification {
 
     TitleInstancePackagePlatform tipp1 = tippUpsertService.upsertDTO(tipp1_map)
 
-    tipp1.title = journal
+    tipp1.title = journal1
     tipp1.ids.addAll([issn, eissn])
     tipp1.save(flush: true)
 
-    def tipp2_map = [
-      pkg: testPkg.id,
-      hostPlatform: testPlt.id,
-      name: 'PackageService Journal 2',
-      url: 'https://package-caching-test.test/journal2',
-      editStatus: 'Approved',
-      publicationType: 'Serial',
-      importId: 'pcsJ2',
-      hybridOA: 'No',
-      paymentType: 'Unknown',
-      accessStartDate: '2021-01-01',
-      accessEndDate: '',
-      subjectArea: 'Subject1',
-      series: 'Series1',
-      publisherName: 'PackageService Test Org',
-      medium: 'Book',
-      coverage: [
-        [
-          coverageDepth: 'fulltext',
-          startDate: '2022-01',
-          startVolume: '2',
-          startIssue: '1',
-          endDate: '',
-          endVolume: '',
-          endIssue: '',
-          coverageNote: ''
-        ]
-      ]
-    ]
-
-    TitleInstancePackagePlatform tipp2 = tippUpsertService.upsertDTO(tipp2_map)
-
-    tipp2.title = journal2
-    tipp2.ids.addAll([eissn2])
-    tipp2.save(flush: true)
-
     sleep(1000)
     packageService.createKbartExport(testPkg)
+    sleep (3000)
 
     then:
-    sleep(3000)
-    def latest_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkg, PackageService.ExportType.KBART_TIPP))
-    def file = new File(filePath + latest_filename)
+    String latest_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkg, PackageService.ExportType.KBART_TIPP))
+    File file = new File(filePath + latest_filename)
 
     file.isFile()
 
@@ -377,11 +348,80 @@ class PackageServiceSpec extends Specification {
     row_data[col_positions['preceding_publication_title_id']] == ''
     row_data[col_positions['access_type']] == 'P'
 
-    row_data = csv.readNext()
+    String[] row_data2 = csv.readNext()
 
-    row_data != null
-    row_data[col_positions['publication_title']] == 'PackageService Journal 1'
-    row_data[col_positions['print_identifier']] == ''
+    row_data2 != null
+    row_data2[col_positions['publication_title']] == 'PackageService Journal 1'
+    row_data2[col_positions['print_identifier']] == '0128-5483'
+    row_data2[col_positions['online_identifier']] == '2180-4338'
+    row_data2[col_positions['date_first_issue_online']] == '2020-01-01'
+    row_data2[col_positions['num_first_vol_online']] == '1'
+    row_data2[col_positions['num_first_issue_online']] == '1'
+    row_data2[col_positions['num_last_vol_online']] == ''
+    row_data2[col_positions['num_last_issue_online']] == ''
+    row_data2[col_positions['date_last_issue_online']] == ''
+    row_data2[col_positions['title_url']] == 'https://package-caching-test.test/journal1'
+    row_data2[col_positions['title_id']] == 'pcsJ1'
+    row_data2[col_positions['embargo_info']] == ''
+    row_data2[col_positions['coverage_depth']] == 'fulltext'
+    row_data2[col_positions['coverage_notes']] == ''
+    row_data2[col_positions['publisher_name']] == 'PackageService Test Org'
+    row_data2[col_positions['publication_type']] == 'Serial'
+    row_data2[col_positions['date_monograph_published_print']] == ''
+    row_data2[col_positions['date_monograph_published_online']] == ''
+    row_data2[col_positions['monograph_volume']] == ''
+    row_data2[col_positions['first_editor']] == ''
+    row_data2[col_positions['parent_publication_title_id']] == ''
+    row_data2[col_positions['preceding_publication_title_id']] == ''
+    row_data2[col_positions['access_type']] == 'P'
+
+    csv.close()
+    file.delete() == true
+  }
+
+  void "Test caching updated TIPP KBART - updated TIPP fields"() {
+    when:
+    String old_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkg, PackageService.ExportType.KBART_TIPP))
+    File old_file = new File(filePath + old_filename)
+
+    if (old_file.isFile()) {
+      assert old_file.delete()
+    }
+
+    sleep(1000)
+    packageService.createKbartExport(testPkg)
+    sleep (3000)
+
+    def tipp1 = TitleInstancePackagePlatform.findByName('PackageService Book 1')
+    tipp1.name = 'PackageService Update Book'
+    tipp1.url = 'https://package-caching-test.test/book1update'
+    tipp1.accessEndDate = null
+    tipp1.dateFirstInPrint = dateFormatService.parseTimestamp('2012-01-01 00:00:00.000')
+    tipp1.merge(flush: true)
+
+    sleep(3000)
+    packageService.createKbartExport(testPkg)
+    sleep(3000)
+
+    then:
+    String latest_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkg, PackageService.ExportType.KBART_TIPP))
+    File file = new File(filePath + latest_filename)
+
+    file.isFile()
+
+    def csv = packageService.initReader(filePath + latest_filename)
+    String[] header = csv.readNext().collect { it.toLowerCase().trim() }
+    def col_positions = [:]
+    int col_ctr = 0
+
+    header.each { col ->
+      col_positions[col] = col_ctr++
+    }
+
+    String[] row_data = csv.readNext()
+
+    row_data[col_positions['publication_title']] == 'PackageService Update Book'
+    row_data[col_positions['print_identifier']] == '979-11-655-6390-5'
     row_data[col_positions['online_identifier']] == '979-11-655-6390-5'
     row_data[col_positions['date_first_issue_online']] == ''
     row_data[col_positions['num_first_vol_online']] == ''
@@ -389,7 +429,7 @@ class PackageServiceSpec extends Specification {
     row_data[col_positions['num_last_vol_online']] == ''
     row_data[col_positions['num_last_issue_online']] == ''
     row_data[col_positions['date_last_issue_online']] == ''
-    row_data[col_positions['title_url']] == 'https://package-caching-test.test/journal1'
+    row_data[col_positions['title_url']] == 'https://package-caching-test.test/book1update'
     row_data[col_positions['first_author']] == 'Author1'
     row_data[col_positions['title_id']] == 'pcsB1'
     row_data[col_positions['embargo_info']] == ''
@@ -397,7 +437,7 @@ class PackageServiceSpec extends Specification {
     row_data[col_positions['coverage_notes']] == ''
     row_data[col_positions['publisher_name']] == 'PackageService Test Org'
     row_data[col_positions['publication_type']] == 'Monograph'
-    row_data[col_positions['date_monograph_published_print']] == '2001-01-01'
+    row_data[col_positions['date_monograph_published_print']] == '2012-01-01'
     row_data[col_positions['date_monograph_published_online']] == '2019-01-01'
     row_data[col_positions['monograph_volume']] == '1'
     row_data[col_positions['first_editor']] == 'Editor1'
@@ -405,7 +445,9 @@ class PackageServiceSpec extends Specification {
     row_data[col_positions['preceding_publication_title_id']] == ''
     row_data[col_positions['access_type']] == 'P'
 
+    String[] row_data2 = csv.readNext()
+
     csv.close()
-    file.delete()
+    file.delete() == true
   }
 }

@@ -487,6 +487,7 @@ class PackageService {
     def titlesOne = [:]
     def titlesTwo = [:]
     def currentPkgNum = 0
+    int batchSize = 50
     boolean cancelled = false
 
     if (date) {
@@ -504,122 +505,44 @@ class PackageService {
 
     log.debug("Building titles map 1 ..")
 
-    Package.withNewSession {
-      for (p1 in listOne) {
-        def pkg = Package.get(genericOIDService.oidToId(p1))
-        currentPkgNum++
+    for (p1 in listOne) {
+      def pkg = Package.get(genericOIDService.oidToId(p1))
+      currentPkgNum++
 
-        if (pkg && !cancelled) {
-          int total = TitleInstancePackagePlatform.executeQuery('''select count(*) from TitleInstancePackagePlatform as tipp
+      if (pkg && !cancelled) {
+        int total = TitleInstancePackagePlatform.executeQuery('''select count(*) from TitleInstancePackagePlatform as tipp
+                                                                where tipp.status in (:tippStatus)
+                                                                and exists (select c from Combo as c where c.fromComponent = :pkg and c.toComponent = tipp)''',
+                                                                [tippStatus: tipp_status, pkg: pkg])[0]
+        int currentOffset = 0
+
+        while (currentOffset < total) {
+          def tipps = TitleInstancePackagePlatform.executeQuery('''from TitleInstancePackagePlatform as tipp
                                                                   where tipp.status in (:tippStatus)
-                                                                  and exists (select c from Combo as c where c.fromComponent = :pkg and c.toComponent = tipp)''',
-                                                                  [tippStatus: tipp_status, pkg: pkg])[0]
-          int currentOffset = 0
+                                                                  and exists (
+                                                                    select c from Combo as c
+                                                                    where c.fromComponent = :pkg
+                                                                    and c.toComponent = tipp
+                                                                  )
+                                                                  and (!tipp.accessEndDate or tipp.accessEndDate > :date)
+                                                                  and (!tipp.accessStartDate or tipp.accessStartDate < :date)
+                                                                  and (tipp.status != :sr or tipp.accessEndDate > :date)
+                                                                  order by id''',
+                                                                [tippStatus: tipp_status, pkg: pkg, date: checkDate, sr: status_retired],
+                                                                [max: batchSize, offset: currentOffset, readOnly: true])
 
-          while (currentOffset < total) {
-            def tipps = TitleInstancePackagePlatform.executeQuery('''from TitleInstancePackagePlatform as tipp
-                                                                    where tipp.status in (:tippStatus)
-                                                                    and exists (select c from Combo as c where c.fromComponent = :pkg and c.toComponent = tipp)''',
-                                                                    [tippStatus: tipp_status, pkg: pkg])
+          tipps.each { tipp ->
+            def ti = ClassUtils.deproxy(tipp.title)
 
-            tipps.each { tipp ->
-              def inRange = true
-
-              if (tipp.accessEndDate && tipp.accessEndDate.before(checkDate)) {
-                inRange = false
-              }
-              else if (tipp.accessStartDate && tipp.accessStartDate.after(checkDate)) {
-                inRange = false
-              }
-              else if (tipp.status == status_retired) {
-                if (date && tipp.lastUpdated?.before(checkDate)) {
-                  inRange = false
-                }
-              }
-
-              if (inRange) {
-                def ti = ClassUtils.deproxy(tipp.title)
-
-                if (!titlesOne[ti.id]){
-                  titlesOne[ti.id] = [id: ti.id, name: ti.name, tipps: []]
-                  totals.one.titles++
-                }
-
-                totals.one.tipps++
-                titlesOne[ti.id]['tipps'] << restMappingService.mapObjectToJson(tipp, tipp_params)
-              }
-              currentOffset++
+            if (!titlesOne[ti.id]){
+              titlesOne[ti.id] = [id: ti.id, name: ti.name, tipps: []]
+              totals.one.titles++
             }
-            cleanUpGorm()
-          }
 
-          if (Thread.currentThread().isInterrupted() || j?.isCancelled()) {
-            log.debug("cancelling Job #${j?.uuid}")
-            cancelled = true
-            break
-          }
+            totals.one.tipps++
+            titlesOne[ti.id]['tipps'] << restMappingService.mapObjectToJson(tipp, tipp_params)
 
-          if (j) {
-            j.setProgress(currentPkgNum, (listOne.size() + listTwo.size()))
-          }
-        }
-        else if (!pkg) {
-          log.debug("Unable to resolve Package with id ${p1}")
-        }
-      }
-
-      log.debug("Added ${totals.one.titles} titles with ${totals.one.tipps} TIPPs!")
-
-      log.debug("Building titles map 2 ..")
-
-      for (p2 in listTwo) {
-        def pkg = Package.get(genericOIDService.oidToId(p2))
-        currentPkgNum++
-
-        if (pkg && !cancelled) {
-          int total = TitleInstancePackagePlatform.executeQuery("select count(*) from TitleInstancePackagePlatform as tipp where tipp.status in (:tippStatus) and exists (select c from Combo as c where c.fromComponent = :pkg and c.toComponent = tipp)", [tippStatus: tipp_status, pkg: pkg])[0]
-          int currentOffset = 0
-
-          while (currentOffset < total) {
-            def tipps = TitleInstancePackagePlatform.executeQuery("from TitleInstancePackagePlatform as tipp where tipp.status in (:tippStatus) and exists (select c from Combo as c where c.fromComponent = :pkg and c.toComponent = tipp)", [tippStatus: tipp_status, pkg: pkg], [max: 50, offset: currentOffset])
-
-            tipps.each { tipp ->
-              def inRange = true
-
-              if (tipp.accessEndDate && tipp.accessEndDate.before(checkDate)) {
-                inRange = false
-              }
-              else if (tipp.accessStartDate && tipp.accessStartDate.after(checkDate)) {
-                inRange = false
-              }
-              else if (tipp.status == status_retired) {
-                if (date && tipp.lastUpdated.before(checkDate)) {
-                  inRange = false
-                }
-              }
-
-              if (inRange) {
-                def ti = ClassUtils.deproxy(tipp.title)
-
-                if (!titlesTwo[ti.id]){
-                  titlesTwo[ti.id] = [id: ti.id, name: ti.name, tipps: []]
-                  totals.two.titles++
-                }
-
-                totals.two.tipps++
-                titlesTwo[ti.id]['tipps'] << restMappingService.mapObjectToJson(tipp, tipp_params)
-
-                if (!titlesOne[ti.id]) {
-                  if (full) {
-                    result['new'] << restMappingService.mapObjectToJson(tipp, tipp_params)
-                  }
-                  else {
-                    result['new']++
-                  }
-                }
-              }
-              currentOffset++
-            }
+            currentOffset++
           }
 
           cleanUpGorm()
@@ -629,10 +552,79 @@ class PackageService {
             cancelled = true
             break
           }
+        }
 
-          if (j) {
-            j.setProgress(currentPkgNum, (listOne.size() + listTwo.size()))
+        if (j) {
+          j.setProgress(currentPkgNum, (listOne.size() + listTwo.size()))
+        }
+      }
+      else if (!pkg) {
+        log.debug("Unable to resolve Package with id ${p1}")
+      }
+    }
+
+    log.debug("Added ${totals.one.titles} titles with ${totals.one.tipps} TIPPs!")
+
+    log.debug("Building titles map 2 ..")
+
+    for (p2 in listTwo) {
+      def pkg = Package.get(genericOIDService.oidToId(p2))
+      currentPkgNum++
+
+      if (pkg && !cancelled) {
+        int total = TitleInstancePackagePlatform.executeQuery("select count(*) from TitleInstancePackagePlatform as tipp where tipp.status in (:tippStatus) and exists (select c from Combo as c where c.fromComponent = :pkg and c.toComponent = tipp)", [tippStatus: tipp_status, pkg: pkg])[0]
+        int currentOffset = 0
+
+        while (currentOffset < total) {
+          def tipps = TitleInstancePackagePlatform.executeQuery('''from TitleInstancePackagePlatform as tipp
+                                                                    where tipp.status in (:tippStatus)
+                                                                    and exists (
+                                                                      select c from Combo as c
+                                                                      where c.fromComponent = :pkg
+                                                                      and c.toComponent = tipp
+                                                                    )
+                                                                    and (!tipp.accessEndDate or tipp.accessEndDate > :date)
+                                                                    and (!tipp.accessStartDate or tipp.accessStartDate < :date)
+                                                                    and (tipp.status != :sr or tipp.accessEndDate > :date)
+                                                                    order by id''',
+                                                                    [tippStatus: tipp_status, pkg: pkg, date: checkDate, sr: status_retired],
+                                                                    [max: 50, offset: currentOffset, readOnly: true])
+
+          tipps.each { tipp ->
+            def ti = ClassUtils.deproxy(tipp.title)
+
+            if (!titlesTwo[ti.id]){
+              titlesTwo[ti.id] = [id: ti.id, name: ti.name, tipps: []]
+              totals.two.titles++
+            }
+
+            totals.two.tipps++
+            titlesTwo[ti.id]['tipps'] << restMappingService.mapObjectToJson(tipp, tipp_params)
+
+            if (!titlesOne[ti.id]) {
+              if (full) {
+                result['new'] << restMappingService.mapObjectToJson(tipp, tipp_params)
+              }
+              else {
+                result['new']++
+              }
+            }
+
+            currentOffset++
           }
+
+
+          cleanUpGorm()
+
+          if (Thread.currentThread().isInterrupted() || j?.isCancelled()) {
+            log.debug("cancelling Job #${j?.uuid}")
+            cancelled = true
+            break
+          }
+        }
+
+        if (j) {
+          j.setProgress(currentPkgNum, (listOne.size() + listTwo.size()))
         }
       }
     }
@@ -1215,6 +1207,8 @@ class PackageService {
    * collects the data of the given package into a KBART formatted TSV file for later download
    */
   void createKbartExport(Package pkg, ExportType exportType=ExportType.KBART_TIPP, boolean force_rewrite = false) {
+    log.debug("createKbartExport :: Package ${pkg}, type: ${exportType}, rewrite: ${force_rewrite}")
+
     if (pkg) {
       def exportFileName = generateExportFileName(pkg, exportType)
       def path = exportFilePath()
@@ -1266,12 +1260,14 @@ class PackageService {
                     existingFileMap[tipp_uuid] = []
                   }
 
-                  existingFileMap[tipp_uuid] << row_data
+                  existingFileMap[tipp_uuid].push(row_data)
                 }
                 else {
                   more = false
                 }
               }
+
+              log.debug("createKbartExport :: Old map: ${existingFileMap}")
             }
           }
 
@@ -1342,7 +1338,7 @@ class PackageService {
                       new_row_data << sanitize(record[fieldName])
                     }
 
-                    existingFileMap[tipp.uuid] << new_row_data
+                    existingFileMap[tipp.uuid].push(new_row_data)
                   }
                 }
               }
@@ -1393,6 +1389,9 @@ class PackageService {
       else {
         log.debug("createKbartExport:: Waiting for active Jobs to finish!")
       }
+    }
+    else {
+      log.error("Unable to reference package!")
     }
   }
 
