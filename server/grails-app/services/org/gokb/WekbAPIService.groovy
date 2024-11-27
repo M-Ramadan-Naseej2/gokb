@@ -21,9 +21,7 @@ class WekbAPIService {
     static transactional = false
     static GrailsApplication grailsApplication
     OrgService orgService
-
     static BlockingHttpClient blockingHttpClient
-
     static final String BASE_URL = "https://wekb.hbz-nrw.de"
     static final String PATH = "/api2/searchApi"
     String USERNAME
@@ -137,40 +135,6 @@ class WekbAPIService {
         }
 
         return false
-    }
-
-
-    def collectData (def importData) {
-        def result = [:]
-
-        def provider = importData?.provider
-        def providerExists = provider.providerExists
-        def platformExists = importData?.platform?.platformExists
-        def source = importData?.source
-        def pckg = importData?.packageItem
-
-        log.debug("COLLECT data..." )
-
-        if (providerExists) {
-            // get Provider Objekt
-
-        }
-
-
-
-
-        /*
-        def status_deleted = RefdataCategory.lookup('KBComponent.Status', 'Deleted')
-        def existingProvider = Org.findAllByNameIlikeAndStatusNotEqual(provider.name, status_deleted);
-
-        if(existingProvider.size() > 0) {
-            log.debug("### found existing Provider: " + existingProvider.get(0).id)
-        }
-        result.packageName = importData.packageItem?.name
-        */
-
-
-        return result
     }
 
 

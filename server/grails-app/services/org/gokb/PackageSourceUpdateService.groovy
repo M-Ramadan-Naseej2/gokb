@@ -1,9 +1,6 @@
 package org.gokb
 
 import com.k_int.ConcurrencyManagerService.Job
-
-import grails.gorm.transactions.*
-
 import groovy.util.logging.Slf4j
 
 import java.net.http.*
@@ -16,7 +13,6 @@ import java.time.ZoneId
 import java.util.regex.Pattern
 
 import org.gokb.cred.*
-import org.apache.commons.io.IOUtils
 import org.mozilla.universalchardet.UniversalDetector
 
 @Slf4j
@@ -25,7 +21,7 @@ class PackageSourceUpdateService {
   def TSVIngestionService
   def validationService
   WekbIngestionService wekbIngestionService
-  boolean isWekbImportOrUpdate
+  boolean isExternalSourceImportOrUpdate
 
   static Pattern DATE_PLACEHOLDER_PATTERN = ~/[0-9]{4}-[0-9]{2}-[0-9]{2}/
   static Pattern FIXED_DATE_ENDING_PLACEHOLDER_PATTERN = ~/\{YYYY-MM-DD\}\.(tsv|txt)$/
@@ -80,10 +76,9 @@ class PackageSourceUpdateService {
         job.startTime = new Date()
       }
 
-      isWekbImportOrUpdate = pkg_source?.importConfig?.value == "WEKB"
-      if ( isWekbImportOrUpdate ) {
-        log.debug("... start WekbIngestionService ...")
-        result.report = wekbIngestionService.startTitleImport(pkgInfo, pkg_source, pkg_plt, pkg_prov, title_ns, p)
+      isExternalSourceImportOrUpdate = (pkg_source?.importConfig?.value && pkg_source.importConfig.value != "EZB")
+      if ( isExternalSourceImportOrUpdate ) {
+        result.report = wekbIngestionService.startTitleImport(pkgInfo, pkg_source, pkg_plt, pkg_prov, title_ns, p, job)
 
       } else {
         if (pkg_source?.url) {
@@ -404,7 +399,7 @@ class PackageSourceUpdateService {
         }
       }
     }
-    else if (!isWekbImportOrUpdate && result.result != 'SKIPPED') {
+    else if (!isExternalSourceImportOrUpdate && result.result != 'SKIPPED') {
       log.debug("Unable to reference DataFile")
       result.result = 'ERROR'
       result.messageCode = 'kbart.errors.url.unknown'

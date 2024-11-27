@@ -3,7 +3,7 @@ package org.gokb
 import grails.converters.JSON
 import grails.plugin.springsecurity.annotation.Secured
 
-class WekbImportController {
+class ExternalSourceImportController {
 
     WekbAPIService wekbAPIService
     OrgService orgService
@@ -71,12 +71,8 @@ class WekbImportController {
         def noResults = ["":""]
         def reqBody = request.JSON
         def errors = [:]
-        log.debug("CheckProviderExists: " + reqBody)
         if(reqBody){
-
             def result = orgService.restLookup(reqBody)
-
-            log.debug("RESULT : " + result)
             if(result){
                 render result as JSON
             }
@@ -87,7 +83,7 @@ class WekbImportController {
     }
 
 
-    @Secured(['IS_AUTHENTICATED_ANONYMOUSLY'])
+    /*@Secured(['IS_AUTHENTICATED_ANONYMOUSLY'])
     def submitImportData(){
         def noResults = ["":""]
         def reqBody = request.JSON
@@ -105,7 +101,7 @@ class WekbImportController {
 
         render noResults as JSON
 
-    }
+    } */
 
     @Secured(['IS_AUTHENTICATED_ANONYMOUSLY'])
     def getTitleData(){

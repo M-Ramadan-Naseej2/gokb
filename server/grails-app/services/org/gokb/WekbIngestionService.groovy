@@ -1,6 +1,7 @@
 package org.gokb
 
 import com.k_int.ConcurrencyManagerService
+import com.k_int.ConcurrencyManagerService.Job
 import grails.converters.JSON
 import grails.gorm.transactions.Transactional
 import org.gokb.cred.IdentifierNamespace
@@ -46,7 +47,7 @@ class WekbIngestionService {
     SessionFactory sessionFactory
     ConcurrencyManagerService concurrencyManagerService
 
-    def startTitleImport (pkgInfo, Source pkg_source, Platform pkg_plt, Org pkg_prov, Long title_ns, org.gokb.cred.Package pkg) {
+    def startTitleImport (pkgInfo, Source pkg_source, Platform pkg_plt, Org pkg_prov, Long title_ns, Package pkg, Job job) {
         def result = [result: 'OK', dryRun: false]
         result.messages = []
         long startTime = System.currentTimeMillis()
@@ -62,8 +63,6 @@ class WekbIngestionService {
         String sourceUrl = pkg_source?.url
         String wekbUUID = extractUUIDFromUrlString(sourceUrl)
 
-        // pkgInfo = [name: p.name, type: "Package", id: p.id, uuid: p.uuid]
-
         def packageInfo = wekbAPIService.getPackageByUuid(wekbUUID)
         int titleCount = packageInfo[0]?.titleCount
 
@@ -73,8 +72,17 @@ class WekbIngestionService {
                 'where c.fromComponent.id=:pkg and c.toComponent=tipp and tipp.status = :sc',
                 [pkg: pkg.id, sc: RefdataCategory.lookup('KBComponent.Status', 'Current')])[0]
 
-        result.report = [elapsed: 0, averagePerHour: 0, averagePerRow: 0, event: "",
-                         numRows: titleCount, skipped: 0, matched: 0, partial: 0, created: 0, retired: 0, reviews: 0, invalid: 0, previous: old_tipp_count]
+        result.report = [
+                numRows: titleCount,
+                skipped: 0,
+                matched: 0,
+                partial: 0,
+                created: 0,
+                retired: 0,
+                reviews: 0,
+                invalid: 0,
+                previous: old_tipp_count
+        ]
 
         if (old_tipp_count > 0) {
             log.debug("OLD TIPPCOUNT: " + old_tipp_count + "  ----> IS UPDATE... ")
@@ -88,7 +96,7 @@ class WekbIngestionService {
 
         for(int offset = 0; offset < titleCount; offset += batchSize) {
             def tipps = wekbAPIService.getTIPPSOfPackage(wekbUUID, batchSize, offset)
-            log.debug("#### " + tipps)
+            // log.debug("#### " + tipps)
             tippBatches.add(tipps)
 
             def expungeResult = deleteDeletedTippsIfNeeded(tipps, isUpdate)
@@ -102,7 +110,7 @@ class WekbIngestionService {
                 if (tipp.status == 'Deleted') {
                     //in der WEKB gelöschte Titel werden nicht importiert
                     log.debug("Title is deleted --> SKIP")
-                    result.report.skipped++
+                    result.report["skipped"]++
                     continue
                 }
 
@@ -124,7 +132,6 @@ class WekbIngestionService {
                     boolean titleIdIsToSet = false
                     if(targetNamespaceTitleId){
                         titleIdIsToSet = true
-                        log.debug("+++++++++++++ TITLE ID TARGET: TRUE ++++++++++++++++++")
                         for (identifier in tipp.identifiers) {
                             if (identifier.namespace && identifier.namespace.equalsIgnoreCase(targetNamespaceTitleId)) {
                                 titleIdIsToSet = false
@@ -156,8 +163,7 @@ class WekbIngestionService {
                     }
                 }
 
-               log.debug("ALL IDENTIFIERS: " + identifiers)
-
+               //log.debug("ALL IDENTIFIERS: " + identifiers)
 
                 def tipp_map = [
                         uuid                       : tipp.uuid?.trim(),
@@ -200,16 +206,9 @@ class WekbIngestionService {
                         paymentType                : tipp.accessType == "Free" ? "F" : "P"
                 ]
 
-
-                // log.debug("TIPP-MAP : " + tipp_map)
-
-                //TODO: zu Testzwecken auskommentiert
                 def line_result = saveTippToDB(tipp_map, pkg_plt, pkg, ingestDate)
 
-                // TODO: result
-                //result.report[line_result.status]++
-
-                log.debug('----------------------------------------------------------------------')
+                result.report[line_result.status]++
 
                 if (tippNum % 50 == 0) {
                     def session = sessionFactory.getCurrentSession()
@@ -218,11 +217,16 @@ class WekbIngestionService {
                 }
 
             }
+
+            int progress = (int) ((offset / titleCount) * 100)
+            log.debug("++++++++++ progress: " + progress)
+            job?.setProgress(progress)
+
             def session = sessionFactory.getCurrentSession()
             session.flush()
             session.clear()
 
-        }// end 1. Durchgang Save
+        }
 
         def session = sessionFactory.getCurrentSession()
         session.flush()
@@ -230,8 +234,8 @@ class WekbIngestionService {
 
 
         // handle Tipp-Status
-        def status_map = ['Current': rdv_current, 'Deleted': rdv_deleted, 'Expected': rdv_expected, 'Retired': rdv_retired]
-        log.debug("+++ set Title Status +++++++++++++")
+        //def status_map = ['Current': rdv_current, 'Deleted': rdv_deleted, 'Expected': rdv_expected, 'Retired': rdv_retired]
+        log.debug("set TIPP status...")
         tippNum = 0
         for(int i = 0; i < tippBatches.size(); i++) {
             def tipps = tippBatches.get(i)
@@ -242,12 +246,13 @@ class WekbIngestionService {
                     log.debug("Title was not imported --> Skip")
                     continue
                 }
-                log.debug("importedTipp.status: " + importedTipp.getStatus() + ", newTipp.status: " + tipp.status)
+
                 def actualTippStatus = RefdataCategory.lookup('KBComponent.Status', tipp.status)
                 importedTipp.setStatus(actualTippStatus)
+
+                //result.report[tipp.status.toString().toLowerCase()]++
                 //importedTipp.setStatus(status_map.get(tipp.status))
 
-                log.debug("----------------------------------- ")
                 if (tippNum % 50 == 0) {
                     session = sessionFactory.getCurrentSession()
                     session.flush()
@@ -291,6 +296,42 @@ class WekbIngestionService {
         } */
 
         result.matchingJob = matching_job.uuid
+
+
+        if (job) {
+            job.setProgress(100)
+            job.endTime = new Date()
+
+            JobResult.withNewTransaction {
+                def result_object = JobResult.findByUuid(job.uuid)
+
+                /*if (result.titleMatch) {
+                    result.titleMatch.rowConflicts = titleMatchConflicts
+                } */
+
+                if (!result_object) {
+                    def job_map = [
+                            uuid        : (job.uuid),
+                            description : "External Source Import".toString(),
+                            resultObject: (result as JSON).toString(),
+                            type        : (job.type),
+                            statusText  : (result.result),
+                            ownerId     : (job.ownerId),
+                            groupId     : (job.groupId),
+                            startTime   : (job.startTime),
+                            endTime     : (job.endTime),
+                            linkedItemId: (job.linkedItem?.id)
+                    ]
+
+                    def jr = new JobResult(job_map).save(flush: true, failOnError: true)
+                }
+            }
+        }
+
+
+        //-----------------------------------------------------------------------
+
+
 
         return result
     }
@@ -350,9 +391,9 @@ class WekbIngestionService {
             //Tipp exists - update if it is not deleted
             if ( tipp ) {
 
-                // result.status = 'matched'
                 if ( tipp.getStatus() != rdv_deleted ) {
                     tipp.refresh()
+                    result.status = 'matched'
                     log.debug("Tipp wird refresht")
                 }
             } else {
@@ -368,7 +409,7 @@ class WekbIngestionService {
                 ]
 
                 tipp = TitleInstancePackagePlatform.tiplAwareCreate(tipp_fields)
-
+                result.status = 'created'
                 log.debug("Created TIPP ${tipp} with URL ${tipp?.url}")
             }
 
@@ -384,6 +425,7 @@ class WekbIngestionService {
             ]
 
             tipp = TitleInstancePackagePlatform.tiplAwareCreate(tipp_fields)
+            result.status = 'created'
 
         }
 
@@ -425,10 +467,7 @@ class WekbIngestionService {
             if (oldTipp && oldTipp.getStatus() == rdv_deleted) {
                 log.debug(" +++ TIPP mit UUID " + newTipp.uuid + " existiert bereits und ist gelöscht ")
 
-                // falls oldTipp gelöscht und newTipp.status != deleted
                 if ( isUpdate ) {
-                    // TODO: ist das überhaupt nötig oder kann das existierende TIPP schlicht geupdatet werden?
-                    // TODO: was ist mit neuen TIPPS, deren Status zuvor nicht "Current" war (retired z.B.)
                     if (newTipp.status != 'Deleted') {
                         log.debug("---> expunged ... ")
                         oldTipp.expunge()

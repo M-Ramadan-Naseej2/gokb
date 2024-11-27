@@ -13,7 +13,7 @@ grails:
             '[/rest/**]': inherit
             '[/validation/**]': inherit
             '[/api/**]': inherit
-            '[/wekb/**]': inherit
+            '[/externalSource/**]': inherit
 
     profile: web
     codegen:
