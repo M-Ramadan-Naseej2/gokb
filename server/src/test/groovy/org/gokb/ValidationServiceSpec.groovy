@@ -167,4 +167,9 @@ class ValidationServiceSpec extends Specification implements DataTest, ServiceUn
     expect:
       service.checkUrl('https://test.com/view/work/bibliographic_entity|comic_book|2530121') != null
   }
+
+  void "test checkUrl with invalid blank space"() {
+    expect:
+      service.checkUrl('https://test.com/view/work/bibliographic_entity|comic_book |2530121') != null
+  }
 }

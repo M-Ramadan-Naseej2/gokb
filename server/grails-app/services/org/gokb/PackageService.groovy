@@ -2,6 +2,10 @@ package org.gokb
 
 import com.k_int.ClassUtils
 import com.k_int.ConcurrencyManagerService.Job
+import com.opencsv.CSVReader
+import com.opencsv.CSVReaderBuilder
+import com.opencsv.CSVParser
+import com.opencsv.CSVParserBuilder
 import grails.gorm.transactions.Transactional
 
 import grails.io.IOUtils
@@ -24,6 +28,7 @@ import java.security.MessageDigest
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -1200,17 +1205,16 @@ class PackageService {
     result
   }
 
-  void updateKbartExport(item) {
-    createKbartExport(item, ExportType.KBART_TIPP)
-    createKbartExport(item, ExportType.KBART_TITLE)
-    createTsvExport(item)
+  void updateKbartExport(item, boolean force_rewrite = false) {
+    createKbartExport(item, ExportType.KBART_TIPP, force_rewrite)
+    createKbartExport(item, ExportType.KBART_TITLE, force_rewrite)
+    createTsvExport(item, force_rewrite)
   }
-
 
   /**
    * collects the data of the given package into a KBART formatted TSV file for later download
    */
-  void createKbartExport(Package pkg, ExportType exportType=ExportType.KBART_TIPP) {
+  void createKbartExport(Package pkg, ExportType exportType=ExportType.KBART_TIPP, boolean force_rewrite = false) {
     if (pkg) {
       def exportFileName = generateExportFileName(pkg, exportType)
       def path = exportFilePath()
@@ -1218,10 +1222,58 @@ class PackageService {
 
       if (activeJobs?.data?.size() == 0) {
         try {
+          boolean selectiveUpdate = false
+          def latestFileName = getLatestFile(path, exportFileName)
+          Date parsed_date
+          def existingFileMap = [:]
           def out = new File("${path}${exportFileName}")
 
           if (out.isFile())
             return
+
+          if (latestFileName && !force_rewrite) {
+            parsed_date = dateFormatService.parseTimestamp(latestFileName.substring(latestFileName.length() - 23, latestFileName.length() - 4))
+            CSVReader csv = initReader(path + latestFileName)
+
+            String[] header = csv.readNext().collect { it.toLowerCase().trim() }
+            def col_positions = [:]
+            int col_ctr = 0
+            boolean header_conflicts = false
+
+            header.each { col ->
+              if (col != KBART_FIELDS[col_ctr]) {
+                log.error("createKbartExport :: Header conflict in KBART caching .. ${col} != ${KBART_FIELDS[col_ctr]}")
+                header_conflicts = true
+              }
+
+              col_positions[col] = col_ctr++
+            }
+
+            if (header_conflicts) {
+              log.warn("createKbartExport :: No selective update due to header discrepancies!")
+            }
+            else {
+              selectiveUpdate = true
+              boolean more = true
+
+              while (more) {
+                String[] row_data = csv.readNext()
+
+                if (row_data) {
+                  def tipp_uuid = row_data[col_positions['gokb_tipp_uid']]
+
+                  if (!existingFileMap[tipp_uuid]) {
+                    existingFileMap[tipp_uuid] = []
+                  }
+
+                  existingFileMap[tipp_uuid] << row_data
+                }
+                else {
+                  more = false
+                }
+              }
+            }
+          }
 
           def tmpFile = new File("${grailsApplication.config.getProperty('gokb.baseTempDirectory')}${exportFileName}")
 
@@ -1241,43 +1293,85 @@ class PackageService {
             def combo_tipps = RefdataCategory.lookup('Combo.Type', 'Package.Tipps')
             def status_current = RefdataCategory.lookup('KBComponent.Status', 'Current')
             def status_expected = RefdataCategory.lookup('KBComponent.Status', 'Expected')
-
-            def query = session.createQuery('''select tipp.id from TitleInstancePackagePlatform as tipp,
+            def qry_string_full = '''select tipp.id from TitleInstancePackagePlatform as tipp,
                                                Combo as c
                                                where c.fromComponent.id = :p
                                                and c.toComponent = tipp
                                                and tipp.status in (:status)
                                                and c.type = :ct
-                                               order by tipp.id''')
+                                               order by tipp.id'''
+            def qry_string_selective = '''select tipp.id from TitleInstancePackagePlatform as tipp,
+                                               Combo as c
+                                               where c.fromComponent.id = :p
+                                               and c.toComponent = tipp
+                                               and c.type = :ct
+                                               and tipp.lastUpdated > :ts
+                                               order by tipp.id'''
+
+
+            def query = session.createQuery(selectiveUpdate ? qry_string_selective : qry_string_full)
             query.setReadOnly(true)
             query.setParameter('p', pkg.getId(), StandardBasicTypes.LONG)
-            query.setParameterList('status', [status_current, status_expected])
             query.setParameter('ct', combo_tipps)
+
+            if (!selectiveUpdate) {
+              query.setParameterList('status', [status_current, status_expected])
+            }
+            else {
+              query.setParameter('ts', parsed_date)
+            }
 
             ScrollableResults tippIDs = query.scroll(ScrollMode.FORWARD_ONLY)
             int ctr = 0
 
-            TitleInstancePackagePlatform.withNewSession { tsession ->
-              while (tippIDs.next()) {
-                def tipp_id = tippIDs.get(0)
-                TitleInstancePackagePlatform tipp = TitleInstancePackagePlatform.get(tipp_id)
+            while (tippIDs.next()) {
+              def tipp_id = tippIDs.get(0)
+              TitleInstancePackagePlatform tipp = TitleInstancePackagePlatform.get(tipp_id)
 
+              if (selectiveUpdate) {
+                if (tipp.status != status_expected && tipp.status != status_current && existingFileMap[tipp.uuid]) {
+                  existingFileMap.remove(tipp.uuid)
+                }
+                else {
+                  existingFileMap[tipp.uuid] = []
+
+                  kbartRecordsFor(tipp, exportType).each { record ->
+                    def new_row_data = []
+
+                    KBART_FIELDS.eachWithIndex { fieldName, i ->
+                      new_row_data << sanitize(record[fieldName])
+                    }
+
+                    existingFileMap[tipp.uuid] << new_row_data
+                  }
+                }
+              }
+              else {
                 kbartRecordsFor(tipp, exportType).each { record ->
                   KBART_FIELDS.eachWithIndex { fieldName, i ->
                     writer.write(sanitize(record[fieldName]))
                     writer.write(i < KBART_FIELDS.size() - 1 ? '\t' : '\n')
                   }
                 }
+              }
 
-                if (ctr % 50 == 0) {
-                  tsession.flush()
-                  tsession.clear()
-                }
+              if (ctr % 50 == 0) {
+                session.flush()
+                session.clear()
+              }
 
-                if (Thread.currentThread().isInterrupted()) {
-                  break
+              if (Thread.currentThread().isInterrupted()) {
+                break
+              }
+              ctr++
+            }
+
+            if (selectiveUpdate) {
+              existingFileMap.each { uuid, rows ->
+                rows.each { row_items ->
+                  writer.write(row_items.join('\t'))
+                  writer.write('\n')
                 }
-                ctr++
               }
             }
             tippIDs.close()
@@ -1302,7 +1396,7 @@ class PackageService {
     }
   }
 
-  public void createTsvExport(Package pkg) {
+  public void createTsvExport(Package pkg, boolean force_rewrite = false) {
     def export_date = dateFormatService.formatDate(new Date())
     String exportFileName = generateExportFileName(pkg, ExportType.TSV)
     String path = exportFilePath()
@@ -1312,10 +1406,35 @@ class PackageService {
     if (activeJobs?.data?.size() == 0) {
       try {
         if (pkg) {
+          boolean selectiveUpdate = false
+          def latestFileName = getLatestFile(path, exportFileName)
+          Date parsed_date
+          def existingFileMap = [:]
           def out = new File("${path}${exportFileName}")
 
           if (out.isFile())
             return
+
+          if (latestFileName && !force_rewrite) {
+            selectiveUpdate = true
+            parsed_date = dateFormatService.parseTimestamp(latestFileName.substring(latestFileName.length() - 23, latestFileName.length() - 4))
+            CSVReader csv = initReader(path + latestFileName)
+
+            String[] header = csv.readNext().collect { it.toLowerCase().trim() }
+            boolean more = true
+            int rownum = 0
+
+            while (more) {
+              String[] row_data = csv.readNext()
+              def tipp_id = row_data[0]
+
+              if (!existingFileMap[tipp_id]) {
+                existingFileMap[tipp_id] = []
+              }
+
+              existingFileMap[tipp_id] << row_data
+            }
+          }
 
           def tmpFile = new File("${grailsApplication.config.getProperty('gokb.baseTempDirectory')}${exportFileName}")
 
@@ -1374,11 +1493,35 @@ class PackageService {
             def session = sessionFactory.getCurrentSession()
             def combo_tipps = RefdataCategory.lookup('Combo.Type', 'Package.Tipps')
             def status_deleted = RefdataCategory.lookup('KBComponent.Status', 'Deleted')
-            def query = session.createQuery("select tipp.id from TitleInstancePackagePlatform as tipp, Combo as c where c.fromComponent.id=:p and c.toComponent=tipp  and tipp.status <> :sd and c.type = :ct order by tipp.id")
+            def qry_string_full = '''select tipp.id
+                                      from TitleInstancePackagePlatform as tipp,
+                                      Combo as c
+                                      where c.fromComponent.id=:p
+                                      and c.toComponent=tipp
+                                      and tipp.status <> :sd
+                                      and c.type = :ct
+                                      order by tipp.id'''
+            def qry_string_selective = '''select tipp.id
+                                      from TitleInstancePackagePlatform as tipp,
+                                      Combo as c
+                                      where c.fromComponent.id=:p
+                                      and c.toComponent=tipp
+                                      and c.type = :ct
+                                      and tipp.lastUpdated = :ts
+                                      order by tipp.id'''
+            def query = session.createQuery(selectiveUpdate ? qry_string_selective : qry_string_full)
+
             query.setReadOnly(true)
             query.setParameter('p', pkg.getId(), StandardBasicTypes.LONG)
-            query.setParameter('sd', status_deleted)
             query.setParameter('ct', combo_tipps)
+
+
+            if (!selectiveUpdate) {
+              query.setParameter('sd', status_deleted)
+            }
+            else {
+              query.setParameter('ts', parsed_date)
+            }
 
             ScrollableResults tipps = query.scroll(ScrollMode.FORWARD_ONLY)
             int ctr = 0
@@ -1387,95 +1530,22 @@ class PackageService {
               while (tipps.next()) {
                 def tipp_id = tipps.get(0)
                 TitleInstancePackagePlatform tipp = TitleInstancePackagePlatform.get(tipp_id)
-                def ti = tipp.title ? TitleInstance.get(tipp.title.id) : null
 
-                if (tipp.coverageStatements?.size() > 0) {
-                  tipp.coverageStatements.each { tcs ->
-                    writer.write(
-                      sanitize(tipp.getId()) + '\t' +
-                      sanitize(tipp.url) + '\t' +
-                      sanitize(ti?.getId()) + '\t' +
-                      sanitize(tipp.name ?: ti?.name) + '\t' +
-                      sanitize(tipp.status.value) + '\t' +
-                      sanitize(ti?.getCurrentPublisher()?.name) + '\t' +
-                      sanitize(ti?.imprint?.name) + '\t' +
-                      sanitize(ti?.publishedFrom) + '\t' +
-                      sanitize(ti?.publishedTo) + '\t' +
-                      sanitize(ti?.medium?.value) + '\t' +
-                      sanitize(ti?.OAStatus?.value) + '\t' +
-                      sanitize(ti?.continuingSeries?.value) + '\t' +
-                      sanitize(tipp.getIdentifierValue('issn') ?: ti?.getIdentifierValue('issn')) + '\t' +
-                      sanitize(tipp.getIdentifierValue('eissn') ?: ti?.getIdentifierValue('eissn')) + '\t' +
-                      sanitize(tipp.getIdentifierValue('zdb') ?: ti?.getIdentifierValue('zdb')) + '\t' +
-                      sanitize(pkgName) + '\t' + sanitize(pkg.id) + '\t' +
-                      '\t' +
-                      sanitize(tipp.hostPlatform.name) + '\t' +
-                      sanitize(tipp.hostPlatform.primaryUrl) + '\t' +
-                      sanitize(tipp.hostPlatform.getId()) + '\t' +
-                      '\t' +
-                      sanitize(tipp.editStatus?.value) + '\t' +
-                      sanitize(tipp.accessStartDate) + '\t' +
-                      sanitize(tipp.accessEndDate) + '\t' +
-                      sanitize(tcs.startDate) + '\t' +
-                      sanitize(tcs.startVolume) + '\t' +
-                      sanitize(tcs.startIssue) + '\t' +
-                      sanitize(tcs.endDate) + '\t' +
-                      sanitize(tcs.endVolume) + '\t' +
-                      sanitize(tcs.endIssue) + '\t' +
-                      sanitize(tcs.embargo) + '\t' +
-                      sanitize(tcs.coverageDepth) + '\t' +
-                      sanitize(tcs.coverageNote) + '\t' +
-                      sanitize(tipp.hostPlatform.primaryUrl) + '\t' +
-                      sanitize(tipp.format?.value) + '\t' +
-                      sanitize(tipp.paymentType?.value) + '\t' +
-                      sanitize(tipp.getIdentifierValue('doi') ?: ti?.getIdentifierValue('doi')) + '\t' +
-                      sanitize(tipp.getIdentifierValue('isbn') ?: ti?.getIdentifierValue('isbn')) + '\t' +
-                      sanitize(tipp.getIdentifierValue('pisbn') ?: ti?.getIdentifierValue('pisbn')) +
-                      '\n');
+                List ordered_rows = tsvRecordsFor(tipp)
+
+                if (selectiveUpdate) {
+                  if (tipp.status == status_deleted && existingFileMap[tipp.id]) {
+                    existingFileMap.remove(tipp.id)
+                  }
+                  else {
+                    existingFileMap[tipp.id] = ordered_rows
                   }
                 }
                 else {
-                  writer.write(
-                    sanitize(tipp.getId()) + '\t' +
-                    sanitize(tipp.url) + '\t' +
-                    sanitize(ti?.getId()) + '\t' +
-                    sanitize(tipp.name ?: ti?.name) + '\t' +
-                    sanitize(tipp.status.value) + '\t' +
-                    sanitize(ti?.getCurrentPublisher()?.name) + '\t' +
-                    sanitize(ti?.imprint?.name) + '\t' +
-                    sanitize(ti?.publishedFrom) + '\t' +
-                    sanitize(ti?.publishedTo) + '\t' +
-                    sanitize(ti?.medium?.value) + '\t' +
-                    sanitize(ti?.OAStatus?.value) + '\t' +
-                    sanitize(ti?.continuingSeries?.value) + '\t' +
-                    sanitize(tipp.getIdentifierValue('issn') ?: ti?.getIdentifierValue('issn')) + '\t' +
-                    sanitize(tipp.getIdentifierValue('eissn') ?: ti?.getIdentifierValue('eissn')) + '\t' +
-                    sanitize(tipp.getIdentifierValue('zdb') ?: ti?.getIdentifierValue('zdb')) + '\t' +
-                    sanitize(pkg.name) + '\t' + sanitize(pkg.getId()) + '\t' +
-                    '\t' +
-                    sanitize(tipp.hostPlatform?.name) + '\t' +
-                    sanitize(tipp.hostPlatform?.primaryUrl) + '\t' +
-                    sanitize(tipp.hostPlatform?.getId()) + '\t' +
-                    '\t' +
-                    sanitize(tipp.editStatus?.value) + '\t' +
-                    sanitize(tipp.accessStartDate) + '\t' +
-                    sanitize(tipp.accessEndDate) + '\t' +
-                    sanitize(tipp.startDate) + '\t' +
-                    sanitize(tipp.startVolume) + '\t' +
-                    sanitize(tipp.startIssue) + '\t' +
-                    sanitize(tipp.endDate) + '\t' +
-                    sanitize(tipp.endVolume) + '\t' +
-                    sanitize(tipp.endIssue) + '\t' +
-                    sanitize(tipp.embargo) + '\t' +
-                    sanitize(tipp.coverageDepth) + '\t' +
-                    sanitize(tipp.coverageNote) + '\t' +
-                    sanitize(tipp.hostPlatform?.primaryUrl) + '\t' +
-                    sanitize(tipp.format?.value) + '\t' +
-                    sanitize(tipp.paymentType?.value) + '\t' +
-                    sanitize(tipp.getIdentifierValue('doi') ?: ti?.getIdentifierValue('doi')) + '\t' +
-                    sanitize(tipp.getIdentifierValue('isbn') ?: ti?.getIdentifierValue('isbn')) + '\t' +
-                    sanitize(tipp.getIdentifierValue('pisbn') ?: ti?.getIdentifierValue('pisbn')) +
-                    '\n')
+                  ordered_rows.each { row ->
+                    writer.write(row.join('\t'))
+                    writer.write('\n')
+                  }
                 }
 
                 ctr++
@@ -1574,6 +1644,22 @@ class PackageService {
     catch (Exception e) {
       log.error("Problem with sending export", e)
     }
+  }
+
+  private CSVReader initReader (filename) {
+    def charset = 'UTF-8'
+
+    final CSVParser parser = new CSVParserBuilder()
+    .withSeparator('\t' as char)
+    .withIgnoreQuotations(true)
+    .build()
+
+    CSVReader csv = new CSVReaderBuilder(
+        new FileReader(filename)
+    ).withCSVParser(parser)
+    .build()
+
+    return csv
   }
 
   public void sendZip(Collection packs, ExportType type, def response) {
@@ -1677,7 +1763,7 @@ class PackageService {
     else {
       name.append("GoKBPackage-").append(pkg.id)
     }
-    name.append('_').append(lastUpdate).append('.tsv')
+    name.append('_').append(lastUpdate).append('.txt')
     return name.toString()
   }
 
@@ -1725,7 +1811,7 @@ class PackageService {
     return ''
   }
 
-  private def kbartRecordsFor (TitleInstancePackagePlatform tipp, ExportType exportType) {
+  private List kbartRecordsFor (TitleInstancePackagePlatform tipp, ExportType exportType) {
     def recordList = []
     def record = [:]
     def ti = ClassUtils.deproxy(tipp.title)
@@ -1766,7 +1852,7 @@ class PackageService {
         record.num_last_issue_online = cst.endIssue
         record.num_last_vol_online = cst.endVolume
         record.embargo_info = cst.embargo
-        record.coverage_depth = cst.coverageDepth
+        record.coverage_depth = cst.coverageDepth ? cst.coverageDepth.value.toLowerCase() : null
         record.coverage_notes = cst.coverageNote
 
         recordList << record.clone()
@@ -1781,10 +1867,110 @@ class PackageService {
       record.num_last_issue_online = tipp.endIssue
       record.num_last_vol_online = tipp.endVolume
       record.embargo_info = tipp.embargo
-      record.coverage_depth = tipp.coverageDepth
+      record.coverage_depth = tipp.coverageDepth ? tipp.coverageDepth.value.toLowerCase() : null
       record.coverage_notes = tipp.coverageNote
 
       recordList << record
+    }
+
+    return recordList
+  }
+
+  private List tsvRecordsFor (TitleInstancePackagePlatform tipp) {
+    def recordList = []
+    def ti = ClassUtils.deproxy(tipp.title)
+
+    if (tipp.coverageStatements?.size() > 0) {
+      tipp.coverageStatements.each { tcs ->
+        def record = [
+          tipp.getId(),
+          sanitize(tipp.url),
+          sanitize(ti?.getId()),
+          sanitize(tipp.name ?: ti?.name),
+          sanitize(tipp.status.value),
+          sanitize(ti?.getCurrentPublisher()?.name),
+          sanitize(ti?.imprint?.name),
+          sanitize(ti?.publishedFrom),
+          sanitize(ti?.publishedTo),
+          sanitize(ti?.medium?.value),
+          sanitize(ti?.OAStatus?.value),
+          sanitize(ti?.continuingSeries?.value),
+          sanitize(tipp.getIdentifierValue('issn') ?: ti?.getIdentifierValue('issn')),
+          sanitize(tipp.getIdentifierValue('eissn') ?: ti?.getIdentifierValue('eissn')),
+          sanitize(tipp.getIdentifierValue('zdb') ?: ti?.getIdentifierValue('zdb')),
+          sanitize(pkgName),
+          sanitize(pkg.id),
+          "",
+          sanitize(tipp.hostPlatform.name),
+          sanitize(tipp.hostPlatform.primaryUrl),
+          sanitize(tipp.hostPlatform.getId()),
+          "",
+          sanitize(tipp.editStatus?.value),
+          sanitize(tipp.accessStartDate),
+          sanitize(tipp.accessEndDate),
+          sanitize(tcs.startDate),
+          sanitize(tcs.startVolume),
+          sanitize(tcs.startIssue),
+          sanitize(tcs.endDate),
+          sanitize(tcs.endVolume),
+          sanitize(tcs.endIssue),
+          sanitize(tcs.embargo),
+          sanitize(tcs.coverageDepth),
+          sanitize(tcs.coverageNote),
+          sanitize(tipp.hostPlatform.primaryUrl),
+          sanitize(tipp.format?.value),
+          sanitize(tipp.paymentType?.value),
+          sanitize(tipp.getIdentifierValue('doi') ?: ti?.getIdentifierValue('doi')),
+          sanitize(tipp.getIdentifierValue('isbn') ?: ti?.getIdentifierValue('isbn')),
+          sanitize(tipp.getIdentifierValue('pisbn') ?: ti?.getIdentifierValue('pisbn'))
+        ]
+
+        recordList << record
+      }
+    }
+    else {
+      def record = [
+        tipp.getId(),
+        sanitize(tipp.url),
+        sanitize(ti?.getId()),
+        sanitize(tipp.name ?: ti?.name),
+        sanitize(tipp.status.value),
+        sanitize(ti?.getCurrentPublisher()?.name),
+        sanitize(ti?.imprint?.name),
+        sanitize(ti?.publishedFrom),
+        sanitize(ti?.publishedTo),
+        sanitize(ti?.medium?.value),
+        sanitize(ti?.OAStatus?.value),
+        sanitize(ti?.continuingSeries?.value),
+        sanitize(tipp.getIdentifierValue('issn') ?: ti?.getIdentifierValue('issn')),
+        sanitize(tipp.getIdentifierValue('eissn') ?: ti?.getIdentifierValue('eissn')),
+        sanitize(tipp.getIdentifierValue('zdb') ?: ti?.getIdentifierValue('zdb')),
+        sanitize(pkgName),
+        sanitize(pkg.id),
+        "",
+        sanitize(tipp.hostPlatform.name),
+        sanitize(tipp.hostPlatform.primaryUrl),
+        sanitize(tipp.hostPlatform.getId()),
+        "",
+        sanitize(tipp.editStatus?.value),
+        sanitize(tipp.accessStartDate),
+        sanitize(tipp.accessEndDate),
+        sanitize(tipp.startDate),
+        sanitize(tipp.startVolume),
+        sanitize(tipp.startIssue),
+        sanitize(tipp.endDate),
+        sanitize(tipp.endVolume),
+        sanitize(tipp.endIssue),
+        sanitize(tipp.embargo),
+        sanitize(tipp.coverageDepth),
+        sanitize(tipp.coverageNote),
+        sanitize(tipp.hostPlatform.primaryUrl),
+        sanitize(tipp.format?.value),
+        sanitize(tipp.paymentType?.value),
+        sanitize(tipp.getIdentifierValue('doi') ?: ti?.getIdentifierValue('doi')),
+        sanitize(tipp.getIdentifierValue('isbn') ?: ti?.getIdentifierValue('isbn')),
+        sanitize(tipp.getIdentifierValue('pisbn') ?: ti?.getIdentifierValue('pisbn'))
+      ]
     }
 
     return recordList
