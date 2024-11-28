@@ -1222,8 +1222,12 @@ class PackageService {
           def existingFileMap = [:]
           def out = new File("${path}${exportFileName}")
 
-          if (out.isFile())
+          if (out.isFile()) {
+            log.debug("createKbartExport :: File already exists!")
             return
+          }
+
+          log.debug("createKbartExport :: Got previous file ${latestFileName}")
 
           if (latestFileName && !force_rewrite) {
             parsed_date = dateFormatService.parseTimestamp(latestFileName.substring(latestFileName.length() - 23, latestFileName.length() - 4))
@@ -1897,8 +1901,8 @@ class PackageService {
           sanitize(tipp.getIdentifierValue('issn') ?: ti?.getIdentifierValue('issn')),
           sanitize(tipp.getIdentifierValue('eissn') ?: ti?.getIdentifierValue('eissn')),
           sanitize(tipp.getIdentifierValue('zdb') ?: ti?.getIdentifierValue('zdb')),
-          sanitize(pkgName),
-          sanitize(pkg.id),
+          sanitize(tipp.pkg.name),
+          sanitize(tipp.pkg.id),
           "",
           sanitize(tipp.hostPlatform.name),
           sanitize(tipp.hostPlatform.primaryUrl),
@@ -1944,8 +1948,8 @@ class PackageService {
         sanitize(tipp.getIdentifierValue('issn') ?: ti?.getIdentifierValue('issn')),
         sanitize(tipp.getIdentifierValue('eissn') ?: ti?.getIdentifierValue('eissn')),
         sanitize(tipp.getIdentifierValue('zdb') ?: ti?.getIdentifierValue('zdb')),
-        sanitize(pkgName),
-        sanitize(pkg.id),
+        sanitize(tipp.pkg.name),
+        sanitize(tipp.pkg.id),
         "",
         sanitize(tipp.hostPlatform.name),
         sanitize(tipp.hostPlatform.primaryUrl),

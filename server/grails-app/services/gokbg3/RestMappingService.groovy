@@ -193,7 +193,7 @@ class RestMappingService {
               break;
 
             case Date.class:
-              if (p.name == 'lastUpdated' || p.name == 'dateCreated') {
+              if (p.name == 'lastUpdated' || p.name == 'dateCreated' || p.name == 'lastRun') {
                 result[p.name] = obj[p.name] ? dateFormatService.formatIsoTimestamp(obj[p.name]) : null
               }
               else {

@@ -194,13 +194,15 @@ class PackageServiceSpec extends Specification {
   }
 
   void "Test caching new TIPP KBART - test new file with monograph"() {
-    when:
+    given:
     def old_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkg, PackageService.ExportType.KBART_TIPP))
     def old_file = new File(filePath + old_filename)
 
     if (old_file.isFile()) {
       assert old_file.delete()
     }
+
+    when:
     sleep(1000)
     packageService.createKbartExport(testPkg)
 
@@ -254,7 +256,7 @@ class PackageServiceSpec extends Specification {
   }
 
   void "Test caching updated TIPP KBART - new TIPP"() {
-    when:
+    given:
     String old_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkg, PackageService.ExportType.KBART_TIPP))
     File old_file = new File(filePath + old_filename)
 
@@ -262,6 +264,7 @@ class PackageServiceSpec extends Specification {
       assert old_file.delete()
     }
 
+    when:
     sleep(1000)
     packageService.createKbartExport(testPkg)
     sleep(3000)
@@ -380,7 +383,7 @@ class PackageServiceSpec extends Specification {
   }
 
   void "Test caching updated TIPP KBART - updated TIPP fields"() {
-    when:
+    given:
     String old_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkg, PackageService.ExportType.KBART_TIPP))
     File old_file = new File(filePath + old_filename)
 
@@ -398,8 +401,9 @@ class PackageServiceSpec extends Specification {
     tipp1.accessEndDate = null
     tipp1.dateFirstInPrint = dateFormatService.parseTimestamp('2012-01-01 00:00:00.000')
     tipp1.merge(flush: true)
-
     sleep(3000)
+
+    when:
     packageService.createKbartExport(testPkg)
     sleep(3000)
 
