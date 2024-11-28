@@ -416,7 +416,11 @@ class PackageSourceUpdateService {
 
   def fetchKbartFile(File tmp_file, URL src_url, boolean restrictSize = true) {
     def result = [content_mime_type: null, file_name: null]
-    HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build()
+    HttpClient client = HttpClient.newBuilder()
+      .connectTimeout(Duration.ofSeconds(30))
+      .followRedirects(HttpClient.Redirect.NORMAL)
+      .build()
+
     Long max_length = 20971520L // 1024 * 1024 * 20
     Long content_length
 
