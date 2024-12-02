@@ -84,7 +84,7 @@ class PackageSourceUpdateService {
         if (pkg_source?.url) {
           URL src_url = null
           Boolean dynamic_date = false
-          def valid_url_string = validationService.checkUrl(pkg_source?.url)
+          def valid_url_string = validationService.checkUrl(pkg_source?.url, true)
           LocalDate extracted_date
           skipInvalid = pkg_source.skipInvalid ?: false
           def file_info = [:]
