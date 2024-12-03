@@ -1149,6 +1149,9 @@ class BootStrap {
 
         RefdataCategory.lookupOrCreate('Subject.Scheme', 'DDC').save(flush: true, failOnError: true)
 
+        RefdataCategory.lookupOrCreate('Source.ImportConfig', 'WEKB').save(flush: true, failOnError: true)
+        RefdataCategory.lookupOrCreate('Source.ImportConfig', 'EZB').save(flush: true, failOnError: true)
+
         lookupOrCreateCuratoryGroupTypes()
 
         // Can be activated on local development instances.

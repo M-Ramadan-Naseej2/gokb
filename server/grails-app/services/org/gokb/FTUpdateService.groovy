@@ -92,6 +92,10 @@ class FTUpdateService {
         result.global = kbc.global?.value ?: ""
         result.globalNote = kbc.globalNote
 
+        if (grailsApplication.config.getProperty('gokb.stableUriBase')) {
+          result.uri = "${grailsApplication.config.getProperty('gokb.stableUriBase')}/package/${kbc.uuid}"
+        }
+
         result.altname = []
         kbc.variantNames.each { vn ->
           result.altname.add(vn.variantName)
