@@ -388,7 +388,7 @@ class PackageSourceUpdateService {
         }
 
         if (user) {
-          update_job.user = user
+          update_job.ownerId = user
         }
 
         update_job.description = "KBART Source ingest (${pkgInfo.name})".toString()
