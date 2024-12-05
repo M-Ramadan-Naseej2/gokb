@@ -1271,7 +1271,7 @@ class PackageService {
                 }
               }
 
-              log.debug("createKbartExport :: Old map: ${existingFileMap}")
+              log.debug("createKbartExport :: Old map has ${existingFileMap.keySet().size()} entries!")
             }
           }
 
@@ -1374,12 +1374,16 @@ class PackageService {
                 }
               }
             }
+
+            log.debug("Rewritten lines for ${ctr} TIPPs")
+
             tippIDs.close()
             writer.close()
           }
 
           new File(path).list().each { fileName ->
             if (fileName.startsWith(exportFileName.substring(0, exportFileName.length() - 21))) {
+              log.debug("Deleting old file ${fileName} for ${exportFileName}")
               new File(path + fileName).delete()
             }
           }
@@ -1423,19 +1427,26 @@ class PackageService {
             parsed_date = dateFormatService.parseTimestamp(latestFileName.substring(latestFileName.length() - 23, latestFileName.length() - 4))
             CSVReader csv = initReader(path + latestFileName)
 
+            def fileNameHeader = csv.readNext()
             String[] header = csv.readNext().collect { it.toLowerCase().trim() }
             boolean more = true
             int rownum = 0
 
             while (more) {
               String[] row_data = csv.readNext()
-              def tipp_id = row_data[0]
 
-              if (!existingFileMap[tipp_id]) {
-                existingFileMap[tipp_id] = []
+              if (row_data) {
+                def tipp_id = row_data[0]
+
+                if (!existingFileMap[tipp_id]) {
+                  existingFileMap[tipp_id] = []
+                }
+
+                existingFileMap[tipp_id] << row_data
               }
-
-              existingFileMap[tipp_id] << row_data
+              else {
+                more = false
+              }
             }
           }
 
@@ -1562,6 +1573,8 @@ class PackageService {
                   tsession.clear()
                 }
               }
+
+              log.debug("Rewritten lines for ${ctr} TIPPs")
             }
             tipps.close()
             writer.close()
@@ -1569,6 +1582,7 @@ class PackageService {
 
           new File(path).list().each { fileName ->
             if (fileName.startsWith(exportFileName.substring(0, exportFileName.length() - 21))) {
+              log.debug("Deleting old file ${fileName} for ${exportFileName}")
               new File(path + fileName).delete()
             }
           }
@@ -1589,7 +1603,7 @@ class PackageService {
     def result = null
 
     new File(path).list().each { someFileName ->
-      if (someFileName.startsWith(filename.substring(0, filename.length() - 15))) {
+      if (someFileName.startsWith(filename.substring(0, filename.length() - 21))) {
         result = someFileName
       }
     }
@@ -1634,7 +1648,7 @@ class PackageService {
         InputStream inFile = new FileInputStream(file)
 
         response.setContentType('text/tab-separated-values')
-        response.setHeader("Content-Disposition", "attachment; filename=\"${fileName.substring(0, fileName.length() - 13)}.tsv\"")
+        response.setHeader("Content-Disposition", "attachment; filename=\"${fileName.substring(0, fileName.length() - 13)}.${fileName.substring(fileName.length() - 4, filename.length - 1)}\"")
         response.setHeader("Content-Encoding", "UTF-8")
         response.setContentLength(file.bytes.length)
 
@@ -1668,7 +1682,7 @@ class PackageService {
   public void sendZip(Collection packs, ExportType type, def response) {
     def pathPrefix = UUID.randomUUID().toString()
     String path = exportFilePath()
-    File tempDir = new File(path + "/" + pathPrefix)
+    File tempDir = new File(path + pathPrefix)
     boolean hasErrors = false
     tempDir.mkdir()
     // step one: collect data files in temp directory
@@ -1706,7 +1720,7 @@ class PackageService {
         }
 
         if (!fileErrors) {
-          File dest = new File("${path}/${pathPrefix}/${fileName.substring(0, fileName.length() - 13)}.tsv")
+          File dest = new File("${path}${pathPrefix}/${fileName.substring(0, fileName.length() - 13)}.txt")
           FileCopyUtils.copy(src, dest)
         }
       } catch (IOException iox) {
@@ -1718,7 +1732,7 @@ class PackageService {
     if (!hasErrors) {
       def zipFileName = exportFilePath() + "gokbExport_${pathPrefix}.zip"
       ZipOutputStream zipFile = new ZipOutputStream(new FileOutputStream(zipFileName))
-      new File("${exportFilePath()}/$pathPrefix").eachFile() { file ->
+      new File("${exportFilePath()}$pathPrefix").eachFile() { file ->
         //check if file
         if (file.isFile()) {
           zipFile.putNextEntry(new ZipEntry(file.name))
