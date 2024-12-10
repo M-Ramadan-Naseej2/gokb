@@ -153,6 +153,11 @@ class ValidationServiceSpec extends Specification implements DataTest, ServiceUn
       service.checkUrl('http://test.localhost') == null
   }
 
+  void "test checkUrl with new tld"() {
+    expect:
+      service.checkUrl('http://test.academy/') != null
+  }
+
   void "test checkUrl with valid date wildcard"() {
     expect:
       service.checkUrl('https://test.com/kbart/provider_Global_TestPackage_{YYYY-MM-DD}.txt', true) != null

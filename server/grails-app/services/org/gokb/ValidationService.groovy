@@ -785,7 +785,7 @@ class ValidationService {
       String url = ""
       def parts = null
 
-      if (parts = final_val =~ /^((?>http[s]?|ftp):\/\/)([^\s\/\?@_]+)(\/[\w\-\/]+\/)*(\/?\?)?([^#]+)?(#[\w\-]+)?$/) {
+      if (parts = final_val =~ /^((?>http[s]?|ftp):\/\/)([^\s\/\?@_]+)(\/[\w\-\/]+\/)*(\/?\??)([^#]+)?(#[\w\-]+)?$/) {
         for (int i = 1; i < parts.groupCount(); i++) {
           log.debug("Group ${i}: ${parts.group(i)}")
 
