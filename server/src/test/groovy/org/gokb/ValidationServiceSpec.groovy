@@ -158,7 +158,7 @@ class ValidationServiceSpec extends Specification implements DataTest, ServiceUn
       service.checkUrl('https://test.com/kbart/provider_Global_TestPackage_{YYYY-MM-DD}.txt', true) != null
   }
 
-  void "test checkUrl with unescaped URL query"() {
+  void "test checkUrl with unescaped URL query part"() {
     expect:
       service.checkUrl('https://test.com/view/work/bibliographic_entity?test=|comic_book|2530121') != null
   }
@@ -166,5 +166,30 @@ class ValidationServiceSpec extends Specification implements DataTest, ServiceUn
   void "test checkUrl with unescaped URL file part"() {
     expect:
       service.checkUrl('https://test.com/view/work/bibliographic_entity|comic_book|2530121') != null
+  }
+
+  void "test checkUrl with invalid blank space"() {
+    expect:
+      service.checkUrl('https://test.com/view/work/bibliographic_entity|comic_book |2530121') != null
+  }
+
+  void "test checkUrl with escaped URL query part"() {
+    expect:
+      service.checkUrl('https://test.com/view/work/bibliographic_entity%7Ccomic_book%7C2530121') != null
+  }
+
+  void "test checkUrl with missing slash before query part"() {
+    expect:
+      service.checkUrl('https://test.com?check=true') != null
+  }
+
+  void "test checkUrl with non-ASCII domain name"() {
+    expect:
+      service.checkUrl('https://www.check-täst.com/de/testing.html') != null
+  }
+
+  void "test checkUrl with multiple unencoded params"() {
+    expect:
+      service.checkUrl('https://www.test.com/path/one/test?one=|test&two= check_this') != null
   }
 }
