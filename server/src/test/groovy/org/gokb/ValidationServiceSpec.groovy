@@ -197,4 +197,9 @@ class ValidationServiceSpec extends Specification implements DataTest, ServiceUn
     expect:
       service.checkUrl('https://www.test.com/path/one/test?one=|test&two= check_this') != null
   }
+
+  void "test checkUrl with unencoded param keys"() {
+    expect:
+      service.checkUrl('https://test.de/search?facet[series_title]=E.T.A.+Hoffmann-Jahrbuch') != null
+  }
 }

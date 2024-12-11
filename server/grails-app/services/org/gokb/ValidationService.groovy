@@ -798,7 +798,9 @@ class ValidationService {
               String final_encoded = ""
 
               if (parts.group(i).split("\\?", 2).size() > 1) {
-                param_parts = parts.group(i).split("\\?", 2)[1]
+                def split_pars = parts.group(i).split("\\?", 2)
+                final_encoded = final_encoded + encodeUrlPart(split_pars[0]) + '?'
+                param_parts = split_pars[1]
               } else {
                 param_parts = parts.group(i)
               }
@@ -809,7 +811,7 @@ class ValidationService {
                 params_list.eachWithIndex { p, idx ->
                   List pparts = p.split('=')
 
-                  final_encoded = final_encoded + pparts[0] + '=' + encodeUrlPart(pparts[1])
+                  final_encoded = final_encoded + encodeUrlPart(pparts[0]) + '=' + encodeUrlPart(pparts[1])
 
                   if (idx < params_list.size() - 2) {
                     final_encoded += '&'
@@ -817,7 +819,7 @@ class ValidationService {
                 }
               }
               else {
-                final_encoded = encodeUrlPart(parts.group(i))
+                final_encoded = encodeUrlPart(param_parts)
               }
 
               if (final_encoded) {
