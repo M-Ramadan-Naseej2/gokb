@@ -244,6 +244,7 @@ class RestMappingService {
         }
         else {
           if (embed_active.contains(cp)) {
+            log.debug("Handling embeds for ${cp}: ${obj[cp]}")
             result['_embedded'][cp] = []
 
             def combos = obj.getCombosByPropertyName(cp)
@@ -1123,7 +1124,7 @@ class RestMappingService {
       }
 
       obj.publisher.addAll(new_items)
-      obj.save()
+      obj.save(flush: true)
     }
 
     if (remove && !result.errors) {
