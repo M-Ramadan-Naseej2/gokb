@@ -612,7 +612,7 @@ class PackageSourceUpdateService {
 
     if (job) {
       job_map = [
-        uuid        : (job.uuid),
+        uuid        : (job_uuid),
         description : (job.description),
         resultObject: (result as JSON).toString(),
         type        : (job.type),
@@ -639,7 +639,7 @@ class PackageSourceUpdateService {
       ]
     }
 
-    def result_object = JobResult.findByUuid(job.uuid)
+    def result_object = JobResult.findByUuid(job_uuid)
 
     if (!result_object) {
       def jr = new JobResult(job_map).save(flush: true, failOnError: true)
