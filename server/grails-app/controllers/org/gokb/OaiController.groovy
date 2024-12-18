@@ -559,10 +559,23 @@ class OaiController {
     render(text: writer.toString(), contentType: "text/xml", encoding: "UTF-8")
   }
 
+  private void handleSetFilters(config, items) {
+    items.each { ps ->
+      def set_parts = ps.split(':')
+
+      if (set_parts?.size() > 1 && config.containsKey(set_parts[1])) {
+        config[set_parts[1]] << set_parts[2]
+      }
+
+      if (set_parts.size() == 4 && set_parts[3] == 'local') {
+        config.local_only = true
+      }
+    }
+  }
 
   def listRecords(result) {
     response.contentType = "text/xml"
-    response.setCharacterEncoding("UTF-8");
+    response.setCharacterEncoding("UTF-8")
 
     try {
       def out = response.outputStream
@@ -576,76 +589,107 @@ class OaiController {
         def metadataPrefix = null
         def errors = []
         def setFilters = [
+          local_only: false,
           curator: [],
           content: [],
           validity: []
         ]
-        boolean local_cg_only = false
-        def from = null
-        def until = null
-        def max = result.oaiConfig.pageSize ?: 10
+        def pagination = [
+          from: null,
+          until: null,
+          offset: 0,
+          max: (result.oaiConfig.pageSize ?: 10),
+          no_offset_rt: true,
+          min_id: null
+        ]
+
         def rec_count = null
         def records = []
         def returnAttrs = true
-        def status_deleted = RefdataCategory.lookup('KBComponent.Status', 'Deleted')
+        RefdataValue status_deleted = RefdataCategory.lookup('KBComponent.Status', 'Deleted')
         def request_map = params
         def cachedPackageResponse = (result.oaiConfig.id == 'packages' && grailsApplication.config.getProperty('gokb.packageOaiCaching.enabled', Boolean, false))
-        def order_by_clause = cachedPackageResponse ? 'order by o.lastCachedDate' : 'order by o.lastUpdated'
+        def order_by_clause = cachedPackageResponse ? 'order by o.lastCachedDate, o.id' : 'order by o.lastUpdated, o.id'
         request_map.keySet().removeAll(['controller','action','id'])
 
         // Check sets for package requests
 
         if (result.oaiConfig.id == 'packages') {
           if (params.list('set') instanceof List) {
-            params.list('set').each { ps ->
-              def set_parts = ps.split(':')
-
-              if (set_parts?.size() > 1 && setFilters.containsKey(set_parts[1])) {
-                setFilters[set_parts[1]] << set_parts[2]
-              }
-
-              if (set_parts.size() == 4 && set_parts[3] == 'local') {
-                local_cg_only = true
-              }
-            }
+            handleSetFilters(setFilters, params.list('set'))
           }
           else {
             log.debug("${params.list('set')}")
           }
         }
 
-        if ( params.resumptionToken && ( params.resumptionToken.trim() ) ) {
+        if (params.resumptionToken && params.resumptionToken.trim()) {
+          def knownPrefixes = result.oaiConfig.schemas.keySet()
+          boolean old_token = false
           def rtc = params.resumptionToken.split('\\|')
 
           log.debug("Got resumption: ${rtc}")
-          if ( rtc.length == 4 ) {
-            if ( rtc[0].trim() ) {
+
+          if (rtc.length == 4) {
+            if (knownPrefixes.contains(rtc[0])) {
+              metadataPrefix = rtc[0]
+              rtc = rtc.drop(1)
+            }
+            else {
+              log.debug("Incoming resumptionToken is using old offset method ..")
+              old_token = true
+
+              pagination.min_id = 1L
+            }
+
+            if (rtc[0].trim()) {
+              def fparam = rtc[0]
+
+              if (fparam.length() == 20) {
+                fparam = fparam.substring(0, 18) + ".000Z"
+              }
+
               try {
-                from = dateFormatService.parseIsoTimestamp(rtc[0])
+                pagination.from = dateFormatService.parseIsoMsTimestamp(fparam)
               }
               catch (Exception pe) {
                 errors.add([code:'badResumptionToken', name: 'resumptionToken', expl: 'Illegal form of resumption token'])
               }
             }
-            if ( rtc[1].trim() ) {
+
+            if (rtc[1].trim()) {
+              def tparam = rtc[0]
+
+              if (tparam.length() == 20) {
+                tparam = tparam.substring(0, 18) + ".000Z"
+              }
+
               try {
-                until = dateFormatService.parseIsoTimestamp(rtc[1])
+                pagination.until = dateFormatService.parseIsoMsTimestamp(tparam)
               }
               catch (Exception pe) {
                 errors.add([code:'badResumptionToken', name: 'resumptionToken', expl: 'Illegal form of resumption token'])
               }
             }
-            if ( rtc[2].trim() ) {
-              offset=Long.parseLong(rtc[2]);
+
+            if (rtc[2].trim()) {
+              if (old_token) {
+                pagination.offset = Long.parseLong(rtc[2])
+              }
+              else {
+                pagination.min_id = Long.parseLong(rtc[2])
+              }
             }
-            if ( rtc[3].trim() ) {
-              metadataPrefix=rtc[3];
+
+            if (old_token && rtc[3].trim()) {
+              metadataPrefix = rtc[3]
+
+              log.debug("Resume from cursor ${pagination.offset} using prefix ${metadataPrefix}")
             }
-            log.debug("Resume from cursor ${offset} using prefix ${metadataPrefix}");
           }
           else {
             errors.add([code:'badResumptionToken', name: 'resumptionToken', expl: 'Unexpected number of components in resumption token'])
-            log.error("Unexpected number of components in resumption token: ${rtc}");
+            log.error("Unexpected number of components in resumption token: ${rtc}")
           }
         }
         else {
@@ -654,7 +698,7 @@ class OaiController {
 
         def prefixHandler = result.oaiConfig.schemas[metadataPrefix]
 
-        if(!prefixHandler) {
+        if (!prefixHandler) {
           errors.add([code: 'cannotDisseminateFormat', name: 'metadataPrefix', expl: 'Metadata format missing or not supported'])
         }
 
@@ -664,8 +708,6 @@ class OaiController {
         def query_params = [:]
         // def query = " from Package as p where p.status.value != 'Deleted'"
         def query = result.oaiConfig.query
-
-        def status_filter = result.oaiConfig.statusFilter
         def cg = null
 
         if (setFilters.curators) {
@@ -749,7 +791,7 @@ class OaiController {
         }
 
         if (result.oaiConfig.id == 'packages') {
-          if (!local_cg_only) {
+          if (!setFilters.local_only) {
             def vl_objects = []
             def rdv_local = RefdataCategory.lookup('Package.Global', 'Local')
             boolean nonlocal_only = false
@@ -837,6 +879,8 @@ class OaiController {
           }
         }
 
+        def status_filter = result.oaiConfig.statusFilter
+
         if (status_filter && status_filter.size() > 0) {
           status_filter.eachWithIndex { val, index ->
             if(!wClause){
@@ -864,15 +908,18 @@ class OaiController {
           }
         }
 
-        if (!from && params.from != null && params.from.trim()) {
+        if (!pagination.from && params.from != null && params.from.trim()) {
           def fparam = params.from
 
-          if( params.from.length() == 10 ) {
-            fparam += 'T00:00:00Z'
+          if (fparam.length() == 10) {
+            fparam += 'T00:00:00.000Z'
+          }
+          else if (fparam.length() == 20) {
+            fparam = fparam.substring(0, 18) + ".000Z"
           }
 
           try {
-            from = dateFormatService.parseIsoTimestamp(fparam)
+            pagination.from = dateFormatService.parseIsoMsTimestamp(fparam)
           }
           catch (Exception pe) {
             errors.add([code:'badArgument', name: 'from', expl: 'This date format is not supported.'])
@@ -880,15 +927,18 @@ class OaiController {
           }
         }
 
-        if (!until && params.until != null && params.until.trim()) {
+        if (!pagination.until && params.until != null && params.until.trim()) {
           def uparam = params.until
 
-          if( params.until.length() == 10 ) {
-            uparam += 'T00:00:00Z'
+          if(uparam.length() == 10) {
+            uparam += 'T00:00:00.000Z'
+          }
+          else if (uparam.length() == 20) {
+            uparam = uparam.substring(0, 18) + ".000Z"
           }
 
           try {
-            until = dateFormatService.parseIsoTimestamp(uparam)
+            pagination.until = dateFormatService.parseIsoMsTimestamp(uparam)
           }
           catch (Exception pe) {
             errors.add([code:'badArgument', name: 'until', expl: 'This date format is not supported.'])
@@ -896,7 +946,7 @@ class OaiController {
           }
         }
 
-        if (from) {
+        if (pagination.from) {
           if (!wClause) {
             query += 'where '
             wClause = true
@@ -906,15 +956,27 @@ class OaiController {
           }
 
           if (cachedPackageResponse) {
-            query += 'o.lastCachedDate > :lupdf'
+            if (!pagination.no_offset_rt) {
+              query += 'o.lastCachedDate > :lupdf'
+            }
+            else {
+              query += '(o.lastCachedDate > :lupdf OR (o.lastCachedDate = :lupdf AND o.id > :minId))'
+              query_params.put('minId', pagination.min_id)
+            }
           }
           else {
-            query += 'o.lastUpdated > :lupdf'
+            if (!pagination.no_offset_rt) {
+              query += 'o.lastUpdated > :lupdf'
+            }
+            else {
+              query += '(o.lastUpdated > :lupdf OR (o.lastUpdated = :lupdf AND o.id > :minId))'
+              query_params.put('minId', pagination.min_id)
+            }
           }
 
-          query_params.put('lupdf', from)
+          query_params.put('lupdf', pagination.from)
         }
-        if (until) {
+        if (pagination.until) {
           if (!wClause) {
             query += 'where '
             wClause = true
@@ -929,7 +991,7 @@ class OaiController {
           else {
             query += 'o.lastUpdated < :lupd'
           }
-          query_params.put('lupd', until)
+          query_params.put('lupd', pagination.until)
         }
 
         log.debug("qry is: ${query}");
@@ -941,14 +1003,30 @@ class OaiController {
         }
         else {
           rec_count = Package.executeQuery("select count(o) ${query}".toString(),query_params)[0];
-          records = Package.executeQuery("select o ${query} ${order_by_clause}".toString(),query_params,[offset:offset,max:max])
 
-          log.debug("${query} rec_count is ${rec_count}, records_size=${records.size()}");
+          if (!pagination.no_offset_rt) {
+            records = Package.executeQuery("select o ${query} ${order_by_clause}".toString(), query_params, [offset: pagination.offset, max: pagination.max, readOnly: true])
+          }
+          else {
+            records = Package.executeQuery("select o ${query} ${order_by_clause}".toString(), query_params, [max: pagination.max, readOnly: true])
+          }
 
-          if ( offset + records.size() < rec_count ) {
-            // Query returns more records than sent, we will need a resumption token
+          if (params.resumptionToken && !pagination.no_offset_rt) {
+            log.debug("${query} rec_count is ${rec_count}, records_size=${records.size()}")
 
-            resumption = "${from?dateFormatService.formatIsoTimestamp(from):''}|${until?dateFormatService.formatIsoTimestamp(until):''}|${offset+records.size()}|${metadataPrefix}"
+            if ( offset + records.size() < rec_count ) {
+              // Query returns more records than sent, we will need a resumption token
+              def from_date_string = pagination.from ? dateFormatService.formatIsoMsTimestamp(pagination.from) : ''
+              def until_date_string = pagination.until ? dateFormatService.formatIsoMsTimestamp(pagination.until) : ''
+
+              resumption = URLEncoder.encode("${from_date_string}|${until_date_string}|${offset+records.size()}|${metadataPrefix}")
+            }
+          }
+          else if (records.size() < rec_count) {
+            def new_min_date = records[records.size() - 1][cachedPackageResponse ? 'lastCachedDate' : 'lastUpdated']
+            def new_min_id = records[records.size() - 1].id
+
+            resumption = URLEncoder.encode("${metadataPrefix}|${dateFormatService.formatIsoMsTimestamp(new_min_date)}|${pagination.until?dateFormatService.formatIsoMsTimestamp(pagination.until):''}|${new_min_id}")
           }
         }
 
@@ -980,10 +1058,20 @@ class OaiController {
                 }
 
                 if ( resumption != null ) {
-                  'resumptionToken'(completeListSize:rec_count, cursor:offset, resumption)
+                  if (pagination.no_offset_rt) {
+                    'resumptionToken'(completeListSize:rec_count, resumption)
+                  }
+                  else {
+                    'resumptionToken'(completeListSize:rec_count, cursor:offset, resumption)
+                  }
                 }
                 else if (params.resumptionToken) {
-                  'resumptionToken'(completeListSize:rec_count, cursor:offset)
+                  if (pagination.no_offset_rt) {
+                    'resumptionToken'(completeListSize:rec_count)
+                  }
+                  else {
+                    'resumptionToken'(completeListSize:rec_count, cursor:offset)
+                  }
                 }
               }
             }
