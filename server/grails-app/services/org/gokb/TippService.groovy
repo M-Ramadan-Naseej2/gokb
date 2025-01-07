@@ -1219,7 +1219,9 @@ class TippService {
         )
       }
     }
-    else if (found.matches.size() == 1 && found.matches[0].conflicts?.size() > 0) {
+    else if (found.matches.size() > 0 && found.matches[0].conflicts?.size() > 0) {
+      boolean rt_review_created = false
+
       found.matches.each { comp ->
         def otherComponent = [oid: "${comp.object.class.name}:${comp.object.id}", name: comp.object.name, id: comp.object.id, uuid: comp.object.uuid]
         def mismatches = []
@@ -1249,8 +1251,9 @@ class TippService {
           }
         }
 
-        if (mismatches.size() > 0 && found.to_create) {
+        if (mismatches.size() > 0 && found.to_create && !rt_review_created) {
           log.debug("Creating RR on new title ${tipp.title} for id conflicts ${mismatches}")
+          rt_review_created = true
           result = true
           def additionalInfo = [
             otherComponents: [otherComponent],
