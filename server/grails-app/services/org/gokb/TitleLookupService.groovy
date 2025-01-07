@@ -275,33 +275,6 @@ class TitleLookupService {
                 }
               }
             }
-            else {
-              log.debug("No class 1 ids supplied. attempting string match")
-
-              // The hash we use is constructed differently based on the type of items.
-              // Serial hashes are based soley on the title, Monographs are based currently on title+primary author surname
-              def target_hash = null
-
-              // Lookup using title string match only.
-              def string_matched = attemptComponentMatch([title: title], newTitleClassName)
-
-              if (string_matched) {
-                log.debug("TI matched by bucket.")
-                def title_match = [object: string_matched, warnings: ['bucket']]
-
-                // this seems odd, as the_title is null and therefore has no field 'name'
-                /* if (title != the_title.name) {
-                  title_match.conflicts.add([message: "Found a title with a different primary name!", field: "name", value: title, matched: the_title.name])
-                }
-                */
-
-                if (!result.matches.contains(string_matched)) {
-                  result.matches.add(title_match)
-                }
-              }
-
-              result.to_create = true
-            }
           }
           else {
             log.debug("No class 1 ids supplied. attempting string match")
