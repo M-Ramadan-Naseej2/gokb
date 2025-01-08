@@ -9,6 +9,9 @@ USERNAME="username"
 PASSWORD="password"
 CSV_FILE="platforms.tsv"
 
+# Explicit setting of the IFS variable to avoid errors in interpretation by bash
+IFS="$(printf '\t')"
+
 # Check if CSV exists
 if [[ ! -f "$CSV_FILE" ]]; then
     echo "Error: File $CSV_FILE not found."
@@ -16,7 +19,7 @@ if [[ ! -f "$CSV_FILE" ]]; then
 fi
 
 # Read CSV without header line by line
-tail -n +2 "$CSV_FILE" | while IFS=$'\t' read -r platformUrl name
+tail -n +2 "$CSV_FILE" | while read -r platformUrl name
 do
    
     DATA='{"platformUrl": "'$platformUrl'", "primaryUrl": "'$platformUrl'", "name": "'$name'"}'
@@ -28,7 +31,7 @@ do
 
     # Build JSON and send with CURL
     response=$(
-    curl -X POST "$URLPROD" \
+    curl -X POST "$URLQA" \
          -H "Content-Type: application/json" \
          -u "$USERNAME":"$PASSWORD" \
          -d "$DATA" 
