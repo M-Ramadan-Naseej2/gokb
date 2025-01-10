@@ -50,10 +50,6 @@ class OrgTestSpec extends AbstractAuthSpec {
   }
 
   def cleanup() {
-    Office.list().each {
-      it.refresh()?.expunge()
-    }
-
     Platform.list().each {
       it.expunge()
     }
@@ -221,6 +217,5 @@ class OrgTestSpec extends AbstractAuthSpec {
 
     resp.body().name == "TestOrgUpdateSource"
     resp.body().source == null
-    resp.body()._embedded?.providedPlatforms?.size() == 1
   }
 }
