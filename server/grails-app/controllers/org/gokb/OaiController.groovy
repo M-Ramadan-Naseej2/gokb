@@ -202,7 +202,7 @@ class OaiController {
       def request_map = params
       def legalClassNames = (options.className == 'org.gokb.cred.TitleInstance' ?
                                 ['org.gokb.cred.TitleInstance', 'org.gokb.cred.BookInstance', 'org.gokb.cred.JournalInstance', 'org.gokb.cred.DatabaseInstance', 'org.gokb.cred.OtherInstance'] :
-                                [result.className])
+                                [options.className])
 
       request_map.keySet().removeAll(['controller','action','id'])
 

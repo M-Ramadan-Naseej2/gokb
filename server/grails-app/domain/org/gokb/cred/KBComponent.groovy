@@ -820,6 +820,47 @@ where cp.owner = :c
   }
 
   @Transient
+  public List getResolvedCombosByPropertyNameAndStatus(propertyName, status) {
+    def result
+    def status_ref
+    def hql_query
+    def hql_params = [:]
+
+    if (this.getId() != null) {
+      // Unsaved components can't have combo relations
+      RefdataValue type = RefdataCategory.lookupOrCreate(Combo.RD_TYPE, getComboTypeValue(propertyName))
+
+      if (status && status != "null") status_ref = RefdataCategory.lookupOrCreate(Combo.RD_STATUS, status)
+
+      hql_query = "select k.id, k.uuid, k.name from KBComponent as k where exists (select 1 from Combo where type = :type "
+      hql_params.put('type', type)
+      if (isComboReverse(propertyName)) {
+        hql_query += " and toComponent = :comp and fromComponent = k"
+        hql_params.put('comp', this)
+      } else {
+        hql_query += " and fromComponent = :comp and toComponent = k"
+        hql_params.put('comp', this)
+      }
+      if (status_ref) {
+        hql_query += " and status = :status"
+        hql_params.put('status', status_ref)
+      }
+
+      hql_query += ")"
+
+
+      result = KBComponent.executeQuery(hql_query, hql_params)
+
+
+
+    } else {
+      log.debug("This.id == null")
+    }
+
+    result
+  }
+
+  @Transient
   public String getDerivedName() {
     return name;
   }

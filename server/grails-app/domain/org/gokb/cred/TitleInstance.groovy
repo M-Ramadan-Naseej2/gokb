@@ -270,44 +270,9 @@ class TitleInstance extends KBComponent {
       Org theIssuer = getIssuer()
       def publisher_combos = getCombosByPropertyName('publisher')
       def history = getTitleHistory()
-      def tipp_info_params = [
-        ttl: this,
-        ctpkg: RefdataCategory.lookup('Combo.Type', 'Package.Tipps'),
-        ctplt: RefdataCategory.lookup('Combo.Type', 'Platform.HostedTipps')
-      ]
-      def tipp_info_qry = '''select tipp.id,
-                                    tipp.uuid,
-                                    tipp.name,
-                                    tipp.status,
-                                    pkg.id,
-                                    pkg.uuid,
-                                    pkg.name,
-                                    plt.id,
-                                    plt.uuid,
-                                    plt.name,
-                                    tipp.url,
-                                    tipp.accessStartDate,
-                                    tipp.accessEndDate
-                              from TitleInstancePackagePlatform as tipp,
-                                    Package as pkg,
-                                    Platform as plt
-                              where exists (
-                                select 1 from Combo
-                                where fromComponent = :ttl
-                                and toComponent = tipp
-                              )
-                              and pkg.id = (
-                                select fromComponent.id from Combo
-                                where type = :ctpkg
-                                and toComponent = tipp
-                              )
-                              and plt.id = (
-                                select fromComponent.id from Combo
-                                where type = :ctplt
-                                and toComponent = tipp
-                              )'''
-
-      def tipps = TitleInstancePackagePlatform.executeQuery(tipp_info_qry, tipp_info_params, [readOnly: true])
+      def tipps = getTipps()
+      RefdataValue type_pkg_tipp = RefdataCategory.lookup('Combo.Type', 'Package.Tipps')
+      RefdataValue type_plt_tipp = RefdataCategory.lookup('Combo.Type', 'Platform.HostedTipps')
 
       builder.'gokb'(attr) {
         builder.'title'(['id': (id), 'uuid': (uuid)]) {
@@ -335,23 +300,27 @@ class TitleInstance extends KBComponent {
 
           builder.'publishers' {
             publisher_combos?.each { Combo pc ->
-              def pub_org = null
+              def pub_info = null
+
               if (isComboReverse('publisher')) {
-                pub_org = pc.fromComponent
+                pub_info = Org.executeQuery("select id, uuid, name from Org where id = :fc", [fc: pc.fromComponent.id])
               }
               else {
-                pub_org = pc.toComponent
+                pub_info = Org.executeQuery("select id, uuid, name from Org where id = :fc", [fc: pc.toComponent.id])
               }
 
-              if (pub_org) {
-                builder."publisher"(['id': pub_org.id, 'uuid': pub_org.uuid]) {
-                  "name"(pub_org.name)
+              if (pub_info) {
+                builder."publisher"(['id': pub_info[0], 'uuid': pub_info[1]]) {
+                  "name"(pub_info[2])
+
                   if (pc.startDate) {
                     "startDate"(pc.startDate ? DateFormatService.formatDate(pc.startDate) : null)
                   }
+
                   if (pc.endDate) {
                     "endDate"(pc.endDate ? DateFormatService.formatDate(pc.endDate) : null)
                   }
+
                   if (pc.status) {
                     "status"(pc.status.value)
                   }
@@ -408,32 +377,36 @@ class TitleInstance extends KBComponent {
 
           builder.'TIPPs'(count: tipps?.size()) {
             tipps?.each { tipp ->
-              builder.'TIPP'(['id': tipp[0], 'uuid': tipp[1]]) {
-                builder.'name'(tipp[2])
-                builder.'status'(tipp[3].value)
+              builder.'TIPP'(['id': tipp.id, 'uuid': tipp.uuid]) {
+                builder.'name'(tipp.name)
+                builder.'status'(tipp.status.value)
 
-                builder.'package'(['id': tipp[4], 'uuid': tipp[5]]) {
-                  builder.'name'(tipp[6])
+                def pkg_info = tipp.getResolvedCombosByPropertyNameAndStatus('pkg', 'Active')[0]
+
+                builder.'package'(['id': pkg_info[0], 'uuid': pkg_info[1]]) {
+                  builder.'name'(pkg_info[2])
                 }
 
-                builder.'platform'(['id': tipp[7], 'uuid': tipp[8]]) {
-                  builder.'name'(tipp[9])
+                def plt_info = tipp.getResolvedCombosByPropertyNameAndStatus('hostPlatform', 'Active')[0]
+
+                builder.'platform'(['id': plt_info[0], 'uuid': plt_info[1]]) {
+                  builder.'name'(plt_info[2])
                 }
 
-                builder.'url'(tipp[10])
+                builder.'url'(tipp.url)
 
-                builder.'accessStartDate'(tipp[11] ? DateFormatService.formatDate(tipp[11]) : null)
-                builder.'accessEndDate'(tipp[12] ? DateFormatService.formatDate(tipp[12]) : null)
+                builder.'accessStartDate'(tipp.accessStartDate ? DateFormatService.formatDate(tipp.accessStartDate) : null)
+                builder.'accessEndDate'(tipp.accessEndDate ? DateFormatService.formatDate(tipp.accessEndDate) : null)
 
                 builder."identifiers" {
-                  def tipp_id_list = activeIdInfoFor(tipp[0])
+                  def tipp_id_list = tipp.activeIdInfo
 
                   tipp_id_list.each { tid ->
                     builder.'identifier'(tid)
                   }
                 }
 
-                def cov_statements = TitleInstancePackagePlatform.get(tipp[0]).coverageStatements
+                def cov_statements = tipp.coverageStatements
 
                 if (cov_statements?.size() > 0) {
                   cov_statements.each { tcs ->
