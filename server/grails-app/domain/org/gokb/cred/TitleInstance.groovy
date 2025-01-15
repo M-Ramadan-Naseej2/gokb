@@ -267,12 +267,47 @@ class TitleInstance extends KBComponent {
   def toGoKBXml(builder, attr) {
 
     try {
-      def tipps = getTipps()
       Org theIssuer = getIssuer()
       def publisher_combos = getCombosByPropertyName('publisher')
-      def people_combos = this.people ?: []
-
       def history = getTitleHistory()
+      def tipp_info_params = [
+        ttl: this,
+        ctpkg: RefdataCategory.lookup('Combo.Type', 'Package.Tipps'),
+        ctplt: RefdataCategory.lookup('Combo.Type', 'Platform.HostedTipps')
+      ]
+      def tipp_info_qry = '''select tipp.id,
+                                    tipp.uuid,
+                                    tipp.name,
+                                    tipp.status,
+                                    pkg.id,
+                                    pkg.uuid,
+                                    pkg.name,
+                                    plt.id,
+                                    plt.uuid,
+                                    plt.name,
+                                    tipp.url,
+                                    tipp.accessStartDate,
+                                    tipp.accessEndDate
+                              from TitleInstancePackagePlatform as tipp,
+                                    Package as pkg,
+                                    Platform as plt
+                              where exists (
+                                select 1 from Combo
+                                where fromComponent = :ttl
+                                and toComponent = tipp
+                              )
+                              and pkg.id = (
+                                select fromComponent.id from Combo
+                                where type = :ctpkg
+                                and toComponent = tipp
+                              )
+                              and plt.id = (
+                                select fromComponent.id from Combo
+                                where type = :ctplt
+                                and toComponent = tipp
+                              )'''
+
+      def tipps = TitleInstancePackagePlatform.executeQuery(tipp_info_qry, tipp_info_params, [readOnly: true])
 
       builder.'gokb'(attr) {
         builder.'title'(['id': (id), 'uuid': (uuid)]) {
@@ -309,8 +344,6 @@ class TitleInstance extends KBComponent {
               }
 
               if (pub_org) {
-                def org_ids = pub_org.activeIdInfo
-
                 builder."publisher"(['id': pub_org.id, 'uuid': pub_org.uuid]) {
                   "name"(pub_org.name)
                   if (pc.startDate) {
@@ -321,11 +354,6 @@ class TitleInstance extends KBComponent {
                   }
                   if (pc.status) {
                     "status"(pc.status.value)
-                  }
-                  builder."identifiers" {
-                    org_ids?.each { org_id ->
-                      builder.'identifier'(org_id)
-                    }
                   }
                 }
               }
@@ -338,8 +366,8 @@ class TitleInstance extends KBComponent {
             }
           }
 
-          else {
-            builder.history() {
+          if (this.class.name == 'org.gokb.cred.JournalInstance') {
+            builder.'history' {
               history.each { he ->
                 builder.historyEvent(['id': he.id]) {
                   builder."date"(he.date ? DateFormatService.formatDate(he.date) : null)
@@ -380,49 +408,33 @@ class TitleInstance extends KBComponent {
 
           builder.'TIPPs'(count: tipps?.size()) {
             tipps?.each { tipp ->
-              builder.'TIPP'(['id': tipp.id, 'uuid': tipp.uuid]) {
+              builder.'TIPP'(['id': tipp[0], 'uuid': tipp[1]]) {
+                builder.'name'(tipp[2])
+                builder.'status'(tipp[3].value)
 
-                builder.'status'(tipp.status.value)
-
-                def pkg = tipp.pkg
-                builder.'package'(['id': pkg?.id, 'uuid': pkg?.uuid]) {
-                  builder.'name'(pkg?.name)
+                builder.'package'(['id': tipp[4], 'uuid': tipp[5]]) {
+                  builder.'name'(tipp[6])
                 }
 
-                def platform = tipp.hostPlatform
-                builder.'platform'(['id': platform?.id, 'uuid': platform?.uuid]) {
-                  builder.'name'(platform?.name)
+                builder.'platform'(['id': tipp[7], 'uuid': tipp[8]]) {
+                  builder.'name'(tipp[9])
                 }
 
-                builder.'accessStartDate'(tipp.accessStartDate ? DateFormatService.formatDate(tipp.accessStartDate) : null)
-                builder.'accessEndDate'(tipp.accessEndDate ? DateFormatService.formatDate(tipp.accessEndDate) : null)
+                builder.'url'(tipp[10])
 
-                builder.'subjectArea'(tipp.subjectArea?.trim())
-                builder.'series'(tipp.series?.trim())
-
-                if (tipp.prices && tipp.prices.size() > 0) {
-                  builder.'prices'() {
-                    tipp.prices.each { price ->
-                      builder.'price' {
-                        builder.'type'(price.priceType?.value)
-                        builder.'amount'(price.price)
-                        builder.'currency'(price.currency)
-                        builder.'startDate'(price.startDate ? DateFormatService.formatDate(price.startDate) : null)
-                        if (price.endDate) {
-                          builder.'endDate'(price.endDate ? DateFormatService.formatDate(price.endDate) : null)
-                        }
-                      }
-                    }
-                  }
-                }
+                builder.'accessStartDate'(tipp[11] ? DateFormatService.formatDate(tipp[11]) : null)
+                builder.'accessEndDate'(tipp[12] ? DateFormatService.formatDate(tipp[12]) : null)
 
                 builder."identifiers" {
-                  tipp.activeIdInfo.each { tid ->
+                  def tipp_id_list = activeIdInfoFor(tipp[0])
+
+                  tipp_id_list.each { tid ->
                     builder.'identifier'(tid)
                   }
                 }
 
-                def cov_statements = tipp.coverageStatements
+                def cov_statements = TitleInstancePackagePlatform.get(tipp[0]).coverageStatements
+
                 if (cov_statements?.size() > 0) {
                   cov_statements.each { tcs ->
                     'coverage'(
@@ -439,19 +451,7 @@ class TitleInstance extends KBComponent {
                   }
                 }
                 else {
-                  builder.'coverage'(
-                    startDate: (tipp.startDate ? DateFormatService.formatDate(tipp.startDate) : null),
-                    startVolume: tipp.startVolume,
-                    startIssue: tipp.startIssue,
-                    endDate: (tipp.endDate ? DateFormatService.formatDate(tipp.endDate) : null),
-                    endVolume: tipp.endVolume,
-                    endIssue: tipp.endIssue,
-                    coverageDepth: tipp.coverageDepth?.value,
-                    coverageNote: tipp.coverageNote,
-                    embargo: tipp.embargo)
-                }
-                if (tipp.url != null) {
-                  'url'(tipp.url)
+                  builder.'coverage'()
                 }
               }
             }
@@ -460,7 +460,7 @@ class TitleInstance extends KBComponent {
       }
     }
     catch (Exception e) {
-      log.error("problem creating record", e);
+      log.error("problem creating record", e)
     }
   }
 

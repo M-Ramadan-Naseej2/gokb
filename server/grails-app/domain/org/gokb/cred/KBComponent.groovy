@@ -1545,6 +1545,23 @@ where cp.owner = :c
   }
 
   @Transient
+  def activeIdInfoFor(id) {
+    RefdataValue refdata_ids = RefdataCategory.lookup('Combo.Type', 'KBComponent.Ids')
+    RefdataValue status_active = DomainClassExtender.comboStatusActive
+    def info_list = Identifier.executeQuery('''select i.namespace.value, i.namespace.name, i.value, i.namespace.family from Identifier as i,
+                                            Combo as c
+                                            where c.fromComponent.id = :tid
+                                            and c.type = :ct
+                                            and c.toComponent = i
+                                            and c.status = :cs''',
+            [tid: id, ct: refdata_ids, cs: status_active],
+            [readOnly: true])
+    def result = info_list.collect { [namespace: it[0], namespaceName: it[1], value: it[2], type: it[3]] }
+
+    result
+  }
+
+  @Transient
   def getActiveSubjectsInfo() {
     def info_list = Identifier.executeQuery('''select sub.scheme.value, sub.heading, sub.name from ComponentSubject as cs,
                                             Subject as sub
