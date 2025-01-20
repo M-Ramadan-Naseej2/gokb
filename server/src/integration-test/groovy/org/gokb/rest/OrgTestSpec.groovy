@@ -50,15 +50,11 @@ class OrgTestSpec extends AbstractAuthSpec {
   }
 
   def cleanup() {
-    Platform.list().each {
-      it.expunge()
-    }
+    Platform.findByName("TestOrgPlt")?.refresh()?.expunge()
+    Platform.findByName("TestOrgPltUpdate")?.refresh()?.expunge()
 
-    Org.list().each {
-      it.expunge()
-    }
-
-    Source.findByName("TestOrgPatchSource")?.expunge()
+    Org.findByName("TestOrgPatch")?.refresh()?.expunge()
+    Office.findByName("firstTestOffice")?.refresh()?.expunge()
   }
 
   void "test /rest/orgs without token"() {
