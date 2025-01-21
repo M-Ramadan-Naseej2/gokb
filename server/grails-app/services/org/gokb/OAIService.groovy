@@ -97,7 +97,7 @@ class OAIService {
         String until_date_string = pagination.until ? dateFormatService.formatIsoMsTimestamp(pagination.until) : ''
         Long new_offset = pagination.offset + result.records.size()
 
-        result.resumption = URLEncoder.encode("${pagination.metadataPrefix}|${dateFormatService.formatIsoMsTimestamp(new_min_date)}|${until_date_string}|${new_min_id}|${new_offset}")
+        result.resumption = "${pagination.metadataPrefix}|${dateFormatService.formatIsoMsTimestamp(new_min_date)}|${until_date_string}|${new_min_id}|${new_offset}"
       }
     }
 
