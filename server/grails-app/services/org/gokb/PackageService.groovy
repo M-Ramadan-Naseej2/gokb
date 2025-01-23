@@ -1648,7 +1648,7 @@ class PackageService {
         InputStream inFile = new FileInputStream(file)
 
         response.setContentType('text/tab-separated-values')
-        response.setHeader("Content-Disposition", "attachment; filename=\"${fileName.substring(0, fileName.length() - 13)}.${fileName.substring(fileName.length() - 4, fileName.length() - 1)}\"")
+        response.setHeader("Content-Disposition", "attachment; filename=\"${fileName.substring(0, fileName.length() - 13)}.${fileName.substring(fileName.length() - 3, fileName.length())}\"")
         response.setHeader("Content-Encoding", "UTF-8")
         response.setContentLength(file.bytes.length)
 
@@ -1835,7 +1835,7 @@ class PackageService {
 
     record.publication_title = pick(tipp.name, ti?.name, exportType)
     record.publication_type = pick(tipp.publicationType, ti?.niceName == 'Book' ? 'Monograph' : 'Serial', exportType)
-    if (pick (tipp.dateFirstInPrint, ti?.hasProperty('dateFirstInPrint'), exportType) != '') {
+    if (record.publication_type == 'Monograph') {
       record.print_identifier = pick(tipp.getIdentifierValue('pISBN'), ti?.getIdentifierValue('pISBN'), exportType)
       record.online_identifier = pick(tipp.getIdentifierValue('ISBN'), ti?.getIdentifierValue('ISBN'), exportType)
     }
