@@ -1648,7 +1648,7 @@ class PackageService {
         InputStream inFile = new FileInputStream(file)
 
         response.setContentType('text/tab-separated-values')
-        response.setHeader("Content-Disposition", "attachment; filename=\"${fileName.substring(0, fileName.length() - 13)}.${fileName.substring(fileName.length() - 4, filename.length - 1)}\"")
+        response.setHeader("Content-Disposition", "attachment; filename=\"${fileName.substring(0, fileName.length() - 13)}.${fileName.substring(fileName.length() - 4, fileName.length() - 1)}\"")
         response.setHeader("Content-Encoding", "UTF-8")
         response.setContentLength(file.bytes.length)
 
