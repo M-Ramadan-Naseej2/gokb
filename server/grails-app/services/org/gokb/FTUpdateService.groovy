@@ -93,7 +93,7 @@ class FTUpdateService {
         result.globalNote = kbc.globalNote
 
         if (grailsApplication.config.getProperty('gokb.stableUriBase')) {
-          result.uri = "${grailsApplication.config.getProperty('gokb.stableUriBase')}/package/${kbc.uuid}"
+          result.uri = "${grailsApplication.config.getProperty('gokb.stableUriBase')}/package/${kbc.uuid}".toString()
         }
 
         result.altname = []
