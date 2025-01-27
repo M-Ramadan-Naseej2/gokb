@@ -1210,20 +1210,20 @@ class PackageService {
     log.debug("createKbartExport :: Package ${pkg}, type: ${exportType}, rewrite: ${force_rewrite}")
 
     if (pkg) {
-      def exportFileName = generateExportFileName(pkg, exportType)
-      def path = exportFilePath()
+      String exportFileName = generateExportFileName(pkg, exportType)
+      String path = exportFilePath()
       def activeJobs = concurrencyManagerService.getComponentJobs(pkg.id)
 
       if (activeJobs?.data?.size() == 0) {
         try {
           boolean selectiveUpdate = false
-          def latestFileName = getLatestFile(path, exportFileName)
+          String latestFileName = getLatestFile(path, exportFileName)
           Date parsed_date
           def existingFileMap = [:]
-          def out = new File("${path}${exportFileName}")
+          File out = new File("${path}${exportFileName}")
 
           if (out.isFile()) {
-            log.debug("createKbartExport :: File already exists!")
+            log.debug("createKbartExport :: File ${exportFileName} already exists!")
             return
           }
 
@@ -1388,6 +1388,7 @@ class PackageService {
             }
           }
 
+          log.debug("Moving temp file ${tmpFile} to ${out}")
           FileUtils.moveFile(tmpFile, out)
         }
         catch (Exception e) {

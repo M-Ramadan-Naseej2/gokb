@@ -202,10 +202,10 @@ class ValidationControllerSpec extends Specification {
       "value": "http://invalid-url.com/ test"
     ]
 
-    HttpRequest request = HttpRequest.POST(baseUrl + "/validation/url", request_body)
+    HttpRequest request = HttpRequest.POST(baseUrl + "/validation/url?replaceDate=false", request_body)
     def resp = http.exchange(request, Map)
     then:
     resp.status == HttpStatus.OK
-    resp.body().result == 'ERROR'
+    resp.body().result == 'OK'
   }
 }

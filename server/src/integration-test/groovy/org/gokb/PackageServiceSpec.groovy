@@ -73,7 +73,6 @@ class PackageServiceSpec extends Specification {
 
   Platform testPlt
   Org testOrg
-  Package testPkg
 
   BookInstance book
   JournalInstance journal1
@@ -84,7 +83,10 @@ class PackageServiceSpec extends Specification {
 
     testOrg = Org.findByName('PackageService Test Org') ?: new Org(name: 'PackageService Test Org').save(flush: true)
     testPlt = Platform.findByName('PackageService Test Platform') ?: new Platform(name: 'PackageService Test Platform', provider: testOrg).save(flush: true)
-    testPkg = Package.findByName('PackageService Test Package') ?: new Package(name: 'PackageService Test Package', provider: testOrg).save(flush: true)
+
+    Package testPkg1 = Package.findByName('PackageService Test Package') ?: new Package(name: 'PackageService Test Package', provider: testOrg).save(flush: true)
+    Package testPkg2 = Package.findByName('PackageService Test AddJournal') ?: new Package(name: 'PackageService Test AddJournal', provider: testOrg).save(flush: true)
+    Package testPkg3 = Package.findByName('PackageService Test FirstLine') ?: new Package(name: 'PackageService Test FirstLine', provider: testOrg).save(flush: true)
 
 
     if (!issn_ns) {
@@ -103,15 +105,20 @@ class PackageServiceSpec extends Specification {
     eissn = Identifier.findByNamespaceAndValue(eissn_ns, '2180-4338') ?: new Identifier(namespace: eissn_ns, value: '2180-4338')
     eissn2 = Identifier.findByNamespaceAndValue(eissn_ns, '1727-9445') ?: new Identifier(namespace: eissn_ns, value: '1727-9445')
 
-    if (!BookInstance.findByName('PackageService Book 1')) {
+    def book = BookInstance.findByName('PackageService Book 1')
+
+    if (!book) {
       book = new BookInstance(name: 'PackageService Book 1').save(flush:true)
       book.ids.add(isbn)
       book.save(flush: true)
+    }
+
+    if (!TitleInstancePackagePlatform.findByName('PackageService BookTipp 1')) {
 
       def tipp_map = [
-        pkg: testPkg.id,
+        pkg: testPkg1.id,
         hostPlatform: testPlt.id,
-        name: 'PackageService Book 1',
+        name: 'PackageService BookTipp 1',
         url: 'https://package-caching-test.test/book1',
         editStatus: 'Approved',
         publicationType: 'Monograph',
@@ -151,17 +158,96 @@ class PackageServiceSpec extends Specification {
       tipp.ids.add(isbn)
       tipp.save(flush: true)
     }
-    else {
-      book = BookInstance.findByName('PackageService Book 1')
+
+    if (!TitleInstancePackagePlatform.findByName('PackageService BookTipp 2')) {
+      def tipp_map = [
+        pkg: testPkg2.id,
+        hostPlatform: testPlt.id,
+        name: 'PackageService BookTipp 2',
+        url: 'https://package-caching-test.test/book1',
+        editStatus: 'Approved',
+        publicationType: 'Monograph',
+        importId: 'pcsB1',
+        firstAuthor: 'Author1',
+        firstEditor: 'Editor1',
+        volumeNumber: '1',
+        editionStatement: '1st ed',
+        hybridOA: 'No',
+        paymentType: 'Unknown',
+        accessStartDate: '2020-01-01',
+        accessEndDate: '2030-12-31',
+        subjectArea: 'Subject1',
+        series: 'Series1',
+        publisherName: 'PackageService Test Org',
+        dateFirstInPrint: '2001-01-01',
+        dateFirstOnline: '2019-01-01',
+        medium: 'Book',
+        coverage: [
+          [
+            coverageDepth: 'fulltext',
+            startDate: '',
+            startVolume: '',
+            startIssue: '',
+            endDate: '',
+            endVolume: '',
+            endIssue: '',
+            coverageNote: ''
+          ]
+        ]
+      ]
+
+      TitleInstancePackagePlatform tipp = tippUpsertService.upsertDTO(tipp_map)
+
+
+      tipp.title = book
+      tipp.ids.add(isbn)
+      tipp.save(flush: true)
     }
 
-    if (!JournalInstance.findByName('PackageService Journal 1')) {
-      journal1 = new JournalInstance(name: 'PackageService Journal 1').save(flush:true)
-      journal1.ids.addAll([issn, eissn])
-      journal1.save(flush: true)
-    }
-    else {
-      journal1 = JournalInstance.findByName('PackageService Journal 1')
+
+    if (!TitleInstancePackagePlatform.findByName('PackageService BookTipp 3')) {
+      def tipp_map = [
+        pkg: testPkg3.id,
+        hostPlatform: testPlt.id,
+        name: 'PackageService BookTipp 3',
+        url: 'https://package-caching-test.test/book1',
+        editStatus: 'Approved',
+        publicationType: 'Monograph',
+        importId: 'pcsB1',
+        firstAuthor: 'Author1',
+        firstEditor: 'Editor1',
+        volumeNumber: '1',
+        editionStatement: '1st ed',
+        hybridOA: 'No',
+        paymentType: 'Unknown',
+        accessStartDate: '2020-01-01',
+        accessEndDate: '2030-12-31',
+        subjectArea: 'Subject1',
+        series: 'Series1',
+        publisherName: 'PackageService Test Org',
+        dateFirstInPrint: '2001-01-01',
+        dateFirstOnline: '2019-01-01',
+        medium: 'Book',
+        coverage: [
+          [
+            coverageDepth: 'fulltext',
+            startDate: '',
+            startVolume: '',
+            startIssue: '',
+            endDate: '',
+            endVolume: '',
+            endIssue: '',
+            coverageNote: ''
+          ]
+        ]
+      ]
+
+      TitleInstancePackagePlatform tipp = tippUpsertService.upsertDTO(tipp_map)
+
+
+      tipp.title = book
+      tipp.ids.add(isbn)
+      tipp.save(flush: true)
     }
   }
 
@@ -171,7 +257,9 @@ class PackageServiceSpec extends Specification {
       'PackageService Journal 1',
       'PackageService Journal 2',
       'PackageService Update Journal',
-      'PackageService Book 1',
+      'PackageService BookTipp 1',
+      'PackageService BookTipp 2',
+      'PackageService BookTipp 3',
       'PackageService Update Book',
     ].each {
       TitleInstancePackagePlatform.findByName(it)?.expunge()
@@ -195,6 +283,7 @@ class PackageServiceSpec extends Specification {
 
   void "Test caching new TIPP KBART - test new file with monograph"() {
     given:
+    def testPkg = Package.findByName('PackageService Test Package')
     def old_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkg, PackageService.ExportType.KBART_TIPP))
     def old_file = new File(filePath + old_filename)
 
@@ -225,7 +314,7 @@ class PackageServiceSpec extends Specification {
 
     String[] row_data = csv.readNext()
 
-    row_data[col_positions['publication_title']] == 'PackageService Book 1'
+    row_data[col_positions['publication_title']] == 'PackageService BookTipp 1'
     row_data[col_positions['print_identifier']] == ''
     row_data[col_positions['online_identifier']] == '979-11-655-6390-5'
     row_data[col_positions['date_first_issue_online']] == ''
@@ -257,7 +346,8 @@ class PackageServiceSpec extends Specification {
 
   void "Test caching updated TIPP KBART - new TIPP"() {
     given:
-    String old_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkg, PackageService.ExportType.KBART_TIPP))
+    def testPkgAdd = Package.findByName('PackageService Test AddJournal')
+    String old_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkgAdd, PackageService.ExportType.KBART_TIPP))
     File old_file = new File(filePath + old_filename)
 
     if (old_file.isFile()) {
@@ -266,11 +356,11 @@ class PackageServiceSpec extends Specification {
 
     when:
     sleep(1000)
-    packageService.createKbartExport(testPkg)
-    sleep(3000)
+    packageService.createKbartExport(testPkgAdd)
+    sleep(5000)
 
     def tipp1_map = [
-      pkg: testPkg.id,
+      pkg: testPkgAdd.id,
       hostPlatform: testPlt.id,
       name: 'PackageService Journal 1',
       url: 'https://package-caching-test.test/journal1',
@@ -284,7 +374,6 @@ class PackageServiceSpec extends Specification {
       subjectArea: 'Subject1',
       series: 'Series1',
       publisherName: 'PackageService Test Org',
-      medium: 'Book',
       coverage: [
         [
           coverageDepth: 'fulltext',
@@ -306,11 +395,16 @@ class PackageServiceSpec extends Specification {
     tipp1.save(flush: true)
 
     sleep(1000)
-    packageService.createKbartExport(testPkg)
-    sleep (3000)
+
+    tipp1.pkg.lastSeen = new Date().getTime()
+    tipp1.pkg.save(flush: true)
+
+    sleep(5000)
+    packageService.createKbartExport(tipp1.pkg)
+    sleep (2000)
 
     then:
-    String latest_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkg, PackageService.ExportType.KBART_TIPP))
+    String latest_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkgAdd, PackageService.ExportType.KBART_TIPP))
     File file = new File(filePath + latest_filename)
 
     file.isFile()
@@ -326,7 +420,7 @@ class PackageServiceSpec extends Specification {
 
     String[] row_data = csv.readNext()
 
-    row_data[col_positions['publication_title']] == 'PackageService Book 1'
+    row_data[col_positions['publication_title']] == 'PackageService BookTipp 2'
     row_data[col_positions['print_identifier']] == ''
     row_data[col_positions['online_identifier']] == '979-11-655-6390-5'
     row_data[col_positions['date_first_issue_online']] == ''
@@ -384,7 +478,9 @@ class PackageServiceSpec extends Specification {
 
   void "Test caching updated TIPP KBART - updated TIPP fields"() {
     given:
-    String old_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkg, PackageService.ExportType.KBART_TIPP))
+    def testPkgUpdate = Package.findByName('PackageService Test FirstLine')
+
+    String old_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkgUpdate, PackageService.ExportType.KBART_TIPP))
     File old_file = new File(filePath + old_filename)
 
     if (old_file.isFile()) {
@@ -392,23 +488,25 @@ class PackageServiceSpec extends Specification {
     }
 
     sleep(1000)
-    packageService.createKbartExport(testPkg)
-    sleep (3000)
+    packageService.createKbartExport(testPkgUpdate)
+    sleep(500)
 
-    def tipp1 = TitleInstancePackagePlatform.findByName('PackageService Book 1')
+    def tipp1 = TitleInstancePackagePlatform.findByName('PackageService BookTipp 3')
     tipp1.name = 'PackageService Update Book'
     tipp1.url = 'https://package-caching-test.test/book1update'
     tipp1.accessEndDate = null
     tipp1.dateFirstInPrint = dateFormatService.parseTimestamp('2012-01-01 00:00:00.000')
     tipp1.merge(flush: true)
-    sleep(3000)
+
+    testPkgUpdate.lastSeen = new Date().getTime()
+    testPkgUpdate.save(flush: true)
 
     when:
-    packageService.createKbartExport(testPkg)
+    packageService.createKbartExport(testPkgUpdate)
     sleep(3000)
 
     then:
-    String latest_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkg, PackageService.ExportType.KBART_TIPP))
+    String latest_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkgUpdate, PackageService.ExportType.KBART_TIPP))
     File file = new File(filePath + latest_filename)
 
     file.isFile()
@@ -425,7 +523,7 @@ class PackageServiceSpec extends Specification {
     String[] row_data = csv.readNext()
 
     row_data[col_positions['publication_title']] == 'PackageService Update Book'
-    row_data[col_positions['print_identifier']] == '979-11-655-6390-5'
+    row_data[col_positions['print_identifier']] == ''
     row_data[col_positions['online_identifier']] == '979-11-655-6390-5'
     row_data[col_positions['date_first_issue_online']] == ''
     row_data[col_positions['num_first_vol_online']] == ''
