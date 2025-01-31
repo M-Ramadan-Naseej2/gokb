@@ -638,11 +638,9 @@ where cp.owner = :c
   def beforeUpdate() {
     log.debug("beforeUpdate for ${this}")
 
-    if (this.name) {
-      if (!shortcode) {
-        this.shortcode = generateShortcode(this.name);
-      }
-      generateNormname();
+    if (this.isDirty('name')) {
+      this.shortcode = generateShortcode(this.name)
+      generateNormname()
       generateComponentHash()
     }
 
@@ -664,7 +662,8 @@ where cp.owner = :c
     // This will return only the first match and stop looking afterwards.
     // Null returned if no match.
 
-    def candidates = Identifier.executeQuery("from Identifier as ido where exists (select 1 from Combo where toComponent = ido and fromComponent = :kbc)", [kbc: this])
+    def combo_active = RefdataCategory.lookup('Combo.Status', 'Active')
+    def candidates = Identifier.executeQuery("from Identifier as ido where exists (select 1 from Combo where toComponent = ido and fromComponent = :kbc and status = :cs)", [kbc: this, cs: combo_active])
 
     candidates.find { it.namespace.value.toLowerCase() == idtype.toLowerCase() }?.value
   }
