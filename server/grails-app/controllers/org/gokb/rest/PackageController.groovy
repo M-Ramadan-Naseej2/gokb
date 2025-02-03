@@ -812,10 +812,15 @@ class PackageController {
         result.message = "There has been an error processing the KBART file!"
       }
     }
-    else {
+    else if (pkg?.id) {
       result.result = 'ERROR'
       response.status = 403
       result.message = "User must belong to at least one curatory group of an existing package to make changes!"
+    }
+    else {
+      result.result = 'ERROR'
+      response.status = 500
+      result.message = "KBART import failed, please try again!"
     }
 
     render result as JSON
