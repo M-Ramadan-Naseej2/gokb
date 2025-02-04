@@ -90,11 +90,11 @@ dependencies {
 
     assets 'com.bertramlabs.plugins:less-asset-pipeline:4.5.1'
 
-    implementation 'org.grails.plugins:spring-security-core:6.1.1'
+    implementation 'org.grails.plugins:spring-security-core:6.1.2'
     implementation 'org.grails.plugins:spring-security-acl:4.0.0.M2'
     implementation 'org.grails.plugins:spring-security-ui:4.0.0.M1'
     implementation 'com.bertramlabs.plugins:asset-pipeline-grails:4.5.1'
-    implementation 'org.grails.plugins:spring-security-rest:5.0.0'
+    implementation 'org.grails.plugins:spring-security-rest:5.0.1'
     implementation 'commons-fileupload:commons-fileupload:1.5'
 
     implementation 'commons-io:commons-io:2.13.0'
