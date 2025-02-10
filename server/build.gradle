@@ -16,7 +16,8 @@ buildscript {
         classpath "gradle.plugin.com.github.erdi.webdriver-binaries:webdriver-binaries-gradle-plugin:2.7"
         // Fixing too long classpath in Windows development environment
         classpath "gradle.plugin.ua.eshepelyuk:ManifestClasspath:1.0.0"
-        classpath "com.bertramlabs.plugins:asset-pipeline-gradle:4.5.1"
+        classpath 'com.bertramlabs.plugins:asset-pipeline-gradle:4.5.2'
+        classpath 'com.bertramlabs.plugins:less-asset-pipeline:4.5.2'
     }
 }
 
@@ -88,12 +89,14 @@ dependencies {
     implementation 'org.grails.plugins:grails-melody-plugin:1.80.0'
     implementation 'net.bull.javamelody:javamelody-core:1.99.0'
 
-    assets 'com.bertramlabs.plugins:less-asset-pipeline:4.5.1'
+    runtimeOnly 'com.bertramlabs.plugins:asset-pipeline-gradle:4.5.2'
+    runtimeOnly 'com.bertramlabs.plugins:less-asset-pipeline:4.5.2'
+
+    assets 'com.bertramlabs.plugins:less-asset-pipeline:4.5.2'
 
     implementation 'org.grails.plugins:spring-security-core:6.1.2'
     implementation 'org.grails.plugins:spring-security-acl:4.0.0.M2'
     implementation 'org.grails.plugins:spring-security-ui:4.0.0.M1'
-    implementation 'com.bertramlabs.plugins:asset-pipeline-grails:4.5.1'
     implementation 'org.grails.plugins:spring-security-rest:5.0.1'
     implementation 'commons-fileupload:commons-fileupload:1.5'
 
@@ -178,6 +181,11 @@ build.doLast {
     grailsBuildInfoFile.withOutputStream {
         properties.store(it,null)
     }
+}
+
+assets {
+    excludes = [ '**/_*.less', 'gokb/themes/*.less', 'gokb/themes/**/*.less', 'bootstrap/*.less', 'bootstrap/**/*.less' ]
+    includes = [ 'webfonts/*', 'gokb/themes/*/bw-theme.less', 'fontawesome.less' ]
 }
 
 webdriverBinaries {
