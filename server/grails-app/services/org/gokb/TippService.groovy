@@ -899,18 +899,16 @@ class TippService {
         else {
           log.debug("Unable to match title!")
 
-          Package p = Package.get(pkg.id)
-
-          if (p.listStatus == RefdataCategory.lookup('Package.ListStatus', 'Checked')) {
-            p.listStatus = RefdataCategory.lookup('Package.ListStatus', 'In Progress')
-            p.save(flush: true)
-          }
-
           result.status = 'unmatched'
         }
 
-        if (found.matches?.size() > 0 || found.conflicts?.size() > 0)
+        if (found.matches?.size() > 0 || found.conflicts?.size() > 0) {
           result.reviewCreated = handleFindConflicts(tipp, found, group)
+
+          if (result.reviewCreated) {
+            revertCheckedListStatusFor(tipp.pkg.id)
+          }
+        }
 
         result
       }
@@ -925,6 +923,19 @@ class TippService {
       result.status = 'error'
       result
     }
+  }
+
+  public boolean revertCheckedListStatusFor(pkgId) {
+    boolean changed = false
+    def p = Package.get(pkgId)
+
+    if (p.listStatus == RefdataCategory.lookup('Package.ListStatus', 'Checked')) {
+      p.listStatus = RefdataCategory.lookup('Package.ListStatus', 'In Progress')
+      p.save(flush: true)
+      changed = true
+    }
+
+    changed
   }
 
   private def createTitleFromTippData(tipp, tipp_ids) {
