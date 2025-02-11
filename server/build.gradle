@@ -49,6 +49,7 @@ configurations {
     developmentOnly
     runtimeClasspath {
         extendsFrom developmentOnly
+        exclude group: 'org.grails', module: 'grails-shell'
     }
 }
 
