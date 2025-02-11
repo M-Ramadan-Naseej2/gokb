@@ -957,9 +957,6 @@ class TitleLookupService {
 
         // Make sure we're all saved before looking up the publisher
         if (the_title.validate()) {
-
-          // addIdentifiers(results.ids, the_title)
-
           // addPublisher(metadata.publisher_name, the_title)
 
           if (the_title.name.startsWith("Unknown Title")) {
@@ -1182,22 +1179,6 @@ class TitleLookupService {
           log.debug "Could not find org name: ${pub_to_add.name}, with normname: ${norm_pub_name}"
         }
       }
-    }
-    ti
-  }
-
-  private TitleInstance addIdentifiers(ids, ti) {
-    TitleInstance.withTransaction {
-      ids.each { new_id ->
-
-        def existing_combo = Combo.executeQuery("from Combo where fromComponent = :ti and toComponent = :ido", [ti: ti, ido: new_id])
-        if (existing_combo.size() == 0) {
-          ti.ids.add(new_id)
-        } else {
-          log.debug("Not adding duplicate ID ${new_id}..")
-        }
-      }
-      ti.save(flush: true)
     }
     ti
   }

@@ -238,7 +238,7 @@ class ComponentUpdateService {
 
     new_ids.each { ci ->
       def namespace_val = ci.namespace ?: ci.type
-      String testKey = "${namespace_val}|${ci.value}".toString()
+      String testKey = "${namespace_val}|${Identifier.normalizeIdentifier(ci.value)}".toString()
 
       if (namespace_val && ci.value && namespace_val.toLowerCase() != "originediturl") {
         if (!existing_ids.contains(testKey)) {

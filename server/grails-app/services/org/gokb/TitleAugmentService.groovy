@@ -917,16 +917,4 @@ class TitleAugmentService {
       log.error("No viable variant name supplied!")
     }
   }
-
-  public void addIdentifiers(ids, ti) {
-    ids.each { new_id ->
-      def existing_combo = Combo.executeQuery("from Combo where fromComponent = :ti and toComponent = :nid", [ti: ti, nid: new_id])
-
-      if (existing_combo.size() == 0) {
-        ti.ids.add(ClassUtils.deproxy(new_id))
-      } else {
-        log.debug("Not adding duplicate ID ${new_id}..")
-      }
-    }
-  }
 }
