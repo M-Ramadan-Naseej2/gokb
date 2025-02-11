@@ -1081,6 +1081,14 @@ class TitleController {
             target.save(flush: true)
           }
 
+          obj.subjects.each { cs ->
+            def existing = ComponentSubject.findByComponentAndSubject(target, cs.subject)
+
+            if (!existing) {
+              new ComponentSubject(component: target, subject: cs.subject).save(flush: true, failOnError: true)
+            }
+          }
+
           log.debug("Deleting stale title ${obj}")
           obj.deleteSoft()
           obj.save(flush: true)
