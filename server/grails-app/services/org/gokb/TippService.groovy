@@ -691,27 +691,32 @@ class TippService {
             log.debug("Checking for resolved ambiguous matches in ${rrList.size()} reviews for TIPP $tipp ..")
             // Check for resolved ambiguous matches
             RefdataValue rr_status_closed = RefdataCategory.lookup("ReviewRequest.Status", "Closed")
+            Combo new_combo
 
             for (rr_atm in rrList) {
-              def total_matches = rr_atm.additionalInfo.otherComponents
-              def current_matches = []
+              if (!tipp.title) {
+                def total_matches = rr_atm.additionalInfo.otherComponents
+                def current_matches = []
 
-              for (ttl in total_matches) {
-                def matched_ti = TitleInstance.get(ttl.id)
+                for (ttl in total_matches) {
+                  def matched_ti = TitleInstance.get(ttl.id)
 
-                if (matched_ti && matched_ti.status == status_current) {
-                  current_matches << matched_ti
+                  if (matched_ti && matched_ti.status == status_current) {
+                    current_matches << matched_ti
+                  }
                 }
-              }
 
-              if (current_matches.size() <= 1) {
+                if (current_matches.size() <= 1) {
+                  rr_atm.status = rr_status_closed
+                  rr_atm.save(flush: true)
+
+                  if (!new_combo && current_matches.size() == 1) {
+                    new_combo = new Combo(fromComponent: current_matches[0], toComponent: tipp, type: RefdataCategory.lookup('Combo.Type', 'TitleInstance.Tipps')).save(flush: true)
+                  }
+                }
+              else {
                 rr_atm.status = rr_status_closed
                 rr_atm.save(flush: true)
-
-                if (current_matches.size() == 1) {
-                  new Combo(fromComponent: current_matches[0], toComponent: tipp, type: RefdataCategory.lookup('Combo.Type', 'TitleInstance.Tipps')).save(flush: true)
-                  break
-                }
               }
             }
           }
