@@ -651,9 +651,14 @@ class TippService {
   }
 
   def matchUnlinkedTipps(def job = null) {
-    def startTime = LocalDateTime.now()
-    def count = 0
-    def result = [matched: 0, created: 0, unmatched: 0, reviews: 0, error: 0]
+    def result = [
+      matched: 0,
+      created: 0,
+      unmatched: 0,
+      reviews: 0,
+      error: 0
+    ]
+    Integer count = 0
 
     TitleInstancePackagePlatform.withNewSession { session ->
       def tippIDs = TitleInstancePackagePlatform.executeQuery(
@@ -668,16 +673,15 @@ class TippService {
         log.debug("Begin ti match for tipp ${tippId}")
         count++
         TitleInstancePackagePlatform tipp = TitleInstancePackagePlatform.get(tippID)
-        // ignore Tipp if RR.Date > Tipp.Date
 
         if (tipp) {
-          def status_open = RefdataCategory.lookup("ReviewRequest.Status", "Open")
-          def rr_type_atm = RefdataCategory.lookup("ReviewRequest.StdDesc", "Ambiguous Title Matches")
+          RefdataValue status_open = RefdataCategory.lookup("ReviewRequest.Status", "Open")
+          RefdataValue rr_type_atm = RefdataCategory.lookup("ReviewRequest.StdDesc", "Ambiguous Title Matches")
           def rrList = ReviewRequest.findAllByComponentToReviewAndStatusAndStdDesc(tipp, status_open, rr_type_atm)
 
           if (rrList.size() == 0) {
             log.debug("match tipp $tipp")
-            def tipp_pkg = Package.get(tipp.pkg.id)
+            Package tipp_pkg = Package.get(tipp.pkg.id)
             def groupId = tipp_pkg.curatoryGroups?.size() > 0 ? tipp_pkg.curatoryGroups[0].id : null
             def match_result = matchTitle(tipp.id, groupId)
 
@@ -689,36 +693,7 @@ class TippService {
           }
           else {
             log.debug("Checking for resolved ambiguous matches in ${rrList.size()} reviews for TIPP $tipp ..")
-            // Check for resolved ambiguous matches
-            RefdataValue rr_status_closed = RefdataCategory.lookup("ReviewRequest.Status", "Closed")
-            Combo new_combo
-
-            for (rr_atm in rrList) {
-              if (!tipp.title) {
-                def total_matches = rr_atm.additionalInfo.otherComponents
-                def current_matches = []
-
-                for (ttl in total_matches) {
-                  def matched_ti = TitleInstance.get(ttl.id)
-
-                  if (matched_ti && matched_ti.status == status_current) {
-                    current_matches << matched_ti
-                  }
-                }
-
-                if (current_matches.size() <= 1) {
-                  rr_atm.status = rr_status_closed
-                  rr_atm.save(flush: true)
-
-                  if (!new_combo && current_matches.size() == 1) {
-                    new_combo = new Combo(fromComponent: current_matches[0], toComponent: tipp, type: RefdataCategory.lookup('Combo.Type', 'TitleInstance.Tipps')).save(flush: true)
-                  }
-                }
-              else {
-                rr_atm.status = rr_status_closed
-                rr_atm.save(flush: true)
-              }
-            }
+            reviewAmbiuousMatches(tipp, rrList)
           }
         }
         log.debug("End ti match for tipp ${tippId}")
@@ -739,10 +714,51 @@ class TippService {
   }
 
   @Transactional
+  private void reviewAmbiuousMatches(tipp, reviews) {
+    RefdataValue rr_status_closed = RefdataCategory.lookup("ReviewRequest.Status", "Closed")
+    Combo new_combo
+
+    for (rr_atm in reviews) {
+      if (!tipp.title) {
+        def total_matches = rr_atm.additionalInfo.otherComponents
+        def current_matches = []
+
+        for (ttl in total_matches) {
+          def matched_ti = TitleInstance.get(ttl.id)
+
+          if (matched_ti && matched_ti.status == status_current) {
+            current_matches << matched_ti
+          }
+        }
+
+        if (current_matches.size() <= 1) {
+          rr_atm.status = rr_status_closed
+          rr_atm.save(flush: true)
+
+          if (!new_combo && current_matches.size() == 1) {
+            new_combo = new Combo(fromComponent: current_matches[0], toComponent: tipp, type: RefdataCategory.lookup('Combo.Type', 'TitleInstance.Tipps')).save(flush: true)
+            touchPackage(tipp)
+          }
+        }
+      else {
+        rr_atm.status = rr_status_closed
+        rr_atm.save(flush: true)
+      }
+    }
+  }
+
+  @Transactional
   def matchPackage(pkgId, def job = null) {
     log.debug("Matching titles for package ${pkgId}")
-    def result = [matched: 0, created: 0, unmatched: 0, error: 0, reviews: 0, result: 'OK']
-    def more = true
+    def result = [
+      result: 'OK',
+      matched: 0,
+      created: 0,
+      unmatched: 0,
+      error: 0,
+      reviews: 0
+    ]
+    Boolean more = true
     int offset = 0
     int total = 0
     def tippIDs = []
