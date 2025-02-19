@@ -693,7 +693,7 @@ class TippService {
           }
           else {
             log.debug("Checking for resolved ambiguous matches in ${rrList.size()} reviews for TIPP $tipp ..")
-            reviewAmbiuousMatches(tipp, rrList)
+            reviewAmbiguousMatches(tipp, rrList)
           }
         }
         log.debug("End ti match for tipp ${tippId}")
@@ -714,7 +714,7 @@ class TippService {
   }
 
   @Transactional
-  private void reviewAmbiuousMatches(tipp, reviews) {
+  private void reviewAmbiguousMatches(tipp, reviews) {
     RefdataValue rr_status_closed = RefdataCategory.lookup("ReviewRequest.Status", "Closed")
     Combo new_combo
 
@@ -740,6 +740,7 @@ class TippService {
             touchPackage(tipp)
           }
         }
+      }
       else {
         rr_atm.status = rr_status_closed
         rr_atm.save(flush: true)
