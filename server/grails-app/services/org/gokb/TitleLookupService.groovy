@@ -352,9 +352,9 @@ class TitleLookupService {
             title_match.warnings.add('title_placeholder')
           } else {
             if (matches[0].name.equals(title) || matches[0].normname?.equals(KBComponent.generateNormname(title))) {
-
+              log.debug("Matched title has a similar name.")
             } else {
-              title_match.conflicts << [
+              title_match.warnings << [
                 message: "Ingest name differs from that of the matched title!",
                 field  : "name",
                 value  : title,

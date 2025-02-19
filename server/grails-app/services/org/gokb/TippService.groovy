@@ -665,10 +665,11 @@ class TippService {
       log.info("${result.total} detached TIPPs to check")
 
       for (Long tippID : tippIDs) {
-        log.debug("begin tipp")
+        log.debug("Begin ti match for tipp ${tippId}")
         count++
         TitleInstancePackagePlatform tipp = TitleInstancePackagePlatform.get(tippID)
         // ignore Tipp if RR.Date > Tipp.Date
+
         if (tipp) {
           def status_open = RefdataCategory.lookup("ReviewRequest.Status", "Open")
           def rr_type_atm = RefdataCategory.lookup("ReviewRequest.StdDesc", "Ambiguous Title Matches")
@@ -687,10 +688,35 @@ class TippService {
             }
           }
           else {
-            log.debug("tipp $tipp has ${rrList.size()} recent Review Requests and is ignored.")
+            log.debug("Checking for resolved ambiguous matches in ${rrList.size()} reviews for TIPP $tipp ..")
+            // Check for resolved ambiguous matches
+            RefdataValue rr_status_closed = RefdataCategory.lookup("ReviewRequest.Status", "Closed")
+
+            for (rr_atm in rrList) {
+              def total_matches = rr_atm.additionalInfo.otherComponents
+              def current_matches = []
+
+              for (ttl in total_matches) {
+                def matched_ti = TitleInstance.get(ttl.id)
+
+                if (matched_ti && matched_ti.status == status_current) {
+                  current_matches << matched_ti
+                }
+              }
+
+              if (current_matches.size() <= 1) {
+                rr_atm.status = rr_status_closed
+                rr_atm.save(flush: true)
+
+                if (current_matches.size() == 1) {
+                  new Combo(fromComponent: current_matches[0], toComponent: tipp, type: RefdataCategory.lookup('Combo.Type', 'TitleInstance.Tipps')).save(flush: true)
+                  break
+                }
+              }
+            }
           }
-          log.debug("end tipp")
         }
+        log.debug("End ti match for tipp ${tippId}")
 
         if (count % 50 == 0) {
           session.flush()
@@ -789,6 +815,7 @@ class TippService {
   @Transactional
   def matchTitle(tippId, def groupId = null) {
     def result = [status: 'matched', reviewCreated: false]
+    RefdataValue status_current = RefdataCategory.lookup("KBComponent.Status", "Current")
 
     def tipp = TitleInstancePackagePlatform.findById(tippId)
 
@@ -866,15 +893,16 @@ class TippService {
           }
         }
         else if (found.matches.size() > 1 && tipp.coverageStatements?.size() > 0) {
-          coverageCheck(tipp, found)
+          def coverage_match = coverageCheck(tipp, found)
 
-          if (found.matches.size() == 1) {
-            ti = found.matches[0].object
+          if (coverage_match.size() == 1) {
+            ti = coverage_match[0].object
           }
-          else if (found.matches.size() == 0) {
-            log.debug("No matches after coverage check.. creating new title ${tipp.name}")
-            ti = createTitleFromTippData(tipp, tipp_ids)
-            result.status = 'created'
+          else if (coverage_match.size() == 0) {
+            log.debug("No match via coverage info ..")
+          }
+          else {
+            log.debug("Multiple matches on coverage ..")
           }
         }
         else {
@@ -1091,12 +1119,14 @@ class TippService {
     result
   }
 
-  private void coverageCheck(tipp, found) {
+  private def coverageCheck(tipp, found) {
     // find the latest coverage
+    def result = []
     TIPPCoverageStatement latest = latest(tipp.coverageStatements)
+
     if (latest && found.matches.size > 1) {
+      def matches = []
       // too many identifier matches
-      def covMatch = []
       for (def comp : found.matches) {
         if (JournalInstance.isInstance(comp.object)) {
           if (// starts too early OR
@@ -1108,16 +1138,16 @@ class TippService {
             break
           }
           else {
-            covMatch << comp
+            result << comp
           }
         }
         else {
           log.debug("Skipping title match with class ${comp?.object?.class}")
         }
       }
-      if (covMatch.size() == 1)
-        found.matches = covMatch
     }
+
+    result
   }
 
   private TIPPCoverageStatement latest(def covStmts) {
@@ -1140,7 +1170,8 @@ class TippService {
 
   private boolean handleFindConflicts(tipp, def found, CuratoryGroup activeCg = null) {
     def result = false
-    def status_open = RefdataCategory.lookup("ReviewRequest.Status", "Open")
+    RefdataValue status_open = RefdataCategory.lookup("ReviewRequest.Status", "Open")
+    RefdataValue type_cic = RefdataCategory.lookup('ReviewRequest.StdDesc', 'Critical Identifier Conflict')
 
     if (found.invalid) {
       result = true
@@ -1163,7 +1194,7 @@ class TippService {
     }
     else if (found.matches.size() > 1 && !tipp.title) {
       result = true
-      def type_atm = RefdataCategory.lookup("ReviewRequest.StdDesc", "Ambiguous Title Matches")
+      RefdataValue type_atm = RefdataCategory.lookup("ReviewRequest.StdDesc", "Ambiguous Title Matches")
       def num_existing = ReviewRequest.executeQuery("select count(*) from ReviewRequest where componentToReview = :tid and stdDesc = :type and status = :so", [tid: tipp, type: type_atm, so: status_open])[0]
 
       if (num_existing == 0) {
@@ -1186,8 +1217,8 @@ class TippService {
       log.debug("Creating RR on existing title for id conflicts")
       def tipp_id_list = tipp.ids.collect { "${it.namespace.value}:${it.value}" }
       def component_to_review = found.matches.removeLast().object
-      RefdataValue rdt = RefdataCategory.lookup('ReviewRequest.StdDesc', 'Critical Identifier Conflict')
-      def ctc_existing = ReviewRequest.executeQuery("select count(*) from ReviewRequest where componentToReview = :tid and stdDesc = :type and status = :so", [tid: component_to_review, type: rdt, so: status_open])[0]
+
+      def ctc_existing = ReviewRequest.executeQuery("select count(*) from ReviewRequest where componentToReview = :tid and stdDesc = :type and status = :so", [tid: component_to_review, type: type_cic, so: status_open])[0]
 
       if (ctc_existing == 0) {
         def other_objects = found.matches.collect {
@@ -1214,13 +1245,15 @@ class TippService {
           null,
           null,
           (additionalInfo as JSON).toString(),
-          rdt,
+          type_cic,
           componentLookupService.findCuratoryGroupOfInterest(component_to_review, null, activeCg)
         )
       }
     }
     else if (found.matches.size() > 0 && found.matches[0].conflicts?.size() > 0) {
       boolean rt_review_created = false
+      RefdataValue type_nc = RefdataCategory.lookupOrCreate('ReviewRequest.StdDesc', 'Namespace Conflict')
+      RefdataValue type_sic = RefdataCategory.lookupOrCreate('ReviewRequest.StdDesc', 'Secondary Identifier Conflict')
 
       found.matches.each { comp ->
         def otherComponent = [oid: "${comp.object.class.name}:${comp.object.id}", name: comp.object.name, id: comp.object.id, uuid: comp.object.uuid]
@@ -1239,7 +1272,7 @@ class TippService {
               null,
               null,
               (additionalInfo as JSON).toString(),
-              RefdataCategory.lookupOrCreate('ReviewRequest.StdDesc', 'Namespace Conflict'),
+              type_nc,
               componentLookupService.findCuratoryGroupOfInterest(tipp, null, activeCg)
             )
           }
@@ -1268,7 +1301,7 @@ class TippService {
             null,
             null,
             (additionalInfo as JSON).toString(),
-            RefdataCategory.lookupOrCreate('ReviewRequest.StdDesc', 'Critical Identifier Conflict'),
+            type_cic,
             componentLookupService.findCuratoryGroupOfInterest(tipp.title, null, activeCg)
           )
         }
@@ -1289,7 +1322,7 @@ class TippService {
             null,
             null,
             (additionalInfo as JSON).toString(),
-            RefdataCategory.lookupOrCreate('ReviewRequest.StdDesc', 'Secondary Identifier Conflict'),
+            type_sic,
             componentLookupService.findCuratoryGroupOfInterest(tipp, null, activeCg)
           )
         }
