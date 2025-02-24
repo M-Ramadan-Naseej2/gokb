@@ -1367,7 +1367,9 @@ class PackageService {
             }
 
             if (selectiveUpdate) {
-              existingFileMap.each { uuid, rows ->
+              Map orderedMap = existingFileMap.sort { it.value[0][0].toLowerCase() }
+
+              orderedMap.each { uuid, rows ->
                 rows.each { row_items ->
                   writer.write(row_items.join('\t'))
                   writer.write('\n')
@@ -1522,7 +1524,7 @@ class PackageService {
                                       where c.fromComponent.id=:p
                                       and c.toComponent=tipp
                                       and c.type = :ct
-                                      and tipp.lastUpdated = :ts
+                                      and tipp.lastUpdated > :ts
                                       order by tipp.id'''
             def query = session.createQuery(selectiveUpdate ? qry_string_selective : qry_string_full)
 
@@ -1572,6 +1574,17 @@ class PackageService {
                 if (ctr % 50 == 0) {
                   tsession.flush()
                   tsession.clear()
+                }
+              }
+
+              if (selectiveUpdate) {
+                Map orderedMap = existingFileMap.sort { it.value[0][0].toLowerCase() }
+
+                orderedMap.each { uuid, rows ->
+                  rows.each { row_items ->
+                    writer.write(row_items.join('\t'))
+                    writer.write('\n')
+                  }
                 }
               }
 
