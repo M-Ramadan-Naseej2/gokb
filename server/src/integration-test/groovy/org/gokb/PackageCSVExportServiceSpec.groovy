@@ -37,10 +37,10 @@ import spock.lang.Specification
 @Integration
 @Transactional
 @Rollback
-class PackageServiceSpec extends Specification {
+class PackageCSVExportServiceSpec extends Specification {
 
   @Autowired
-  PackageService packageService
+  PackageCSVExportService packageCSVExportService
 
   @Autowired
   TippService tippService
@@ -79,7 +79,7 @@ class PackageServiceSpec extends Specification {
   JournalInstance journal2
 
   def setup() {
-    filePath = packageService.exportFilePath()
+    filePath = packageCSVExportService.exportFilePath()
 
     testOrg = Org.findByName('PackageService Test Org') ?: new Org(name: 'PackageService Test Org').save(flush: true)
     testPlt = Platform.findByName('PackageService Test Platform') ?: new Platform(name: 'PackageService Test Platform', provider: testOrg).save(flush: true)
@@ -284,7 +284,7 @@ class PackageServiceSpec extends Specification {
   void "Test caching new TIPP KBART - test new file with monograph"() {
     given:
     def testPkg = Package.findByName('PackageService Test Package')
-    def old_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkg, PackageService.ExportType.KBART_TIPP))
+    def old_filename = packageCSVExportService.getLatestFile(filePath, packageCSVExportService.generateExportFileName(testPkg, PackageCSVExportService.ExportType.KBART_TIPP))
     def old_file = new File(filePath + old_filename)
 
     if (old_file.isFile()) {
@@ -293,22 +293,22 @@ class PackageServiceSpec extends Specification {
 
     when:
     sleep(1000)
-    packageService.createKbartExport(testPkg)
+    packageCSVExportService.createKbartExport(testPkg)
 
     then:
     sleep(3000)
-    String latest_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkg, PackageService.ExportType.KBART_TIPP))
+    String latest_filename = packageCSVExportService.getLatestFile(filePath, packageCSVExportService.generateExportFileName(testPkg, PackageCSVExportService.ExportType.KBART_TIPP))
     File file = new File(filePath + latest_filename)
 
     assert file.isFile()
 
-    def csv = packageService.initReader(filePath + latest_filename)
+    def csv = packageCSVExportService.initReader(filePath + latest_filename)
     String[] header = csv.readNext().collect { it.toLowerCase().trim() }
     def col_positions = [:]
     int col_ctr = 0
 
     header.each { col ->
-      col == packageService.KBART_FIELDS[col_ctr]
+      col == packageCSVExportService.KBART_FIELDS[col_ctr]
       col_positions[col] = col_ctr++
     }
 
@@ -347,7 +347,7 @@ class PackageServiceSpec extends Specification {
   void "Test caching updated TIPP KBART - new TIPP"() {
     given:
     def testPkgAdd = Package.findByName('PackageService Test AddJournal')
-    String old_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkgAdd, PackageService.ExportType.KBART_TIPP))
+    String old_filename = packageCSVExportService.getLatestFile(filePath, packageCSVExportService.generateExportFileName(testPkgAdd, PackageCSVExportService.ExportType.KBART_TIPP))
     File old_file = new File(filePath + old_filename)
 
     if (old_file.isFile()) {
@@ -356,7 +356,7 @@ class PackageServiceSpec extends Specification {
 
     when:
     sleep(1000)
-    packageService.createKbartExport(testPkgAdd)
+    packageCSVExportService.createKbartExport(testPkgAdd)
     sleep(5000)
 
     def tipp1_map = [
@@ -400,16 +400,16 @@ class PackageServiceSpec extends Specification {
     tipp1.pkg.save(flush: true)
 
     sleep(5000)
-    packageService.createKbartExport(tipp1.pkg)
+    packageCSVExportService.createKbartExport(tipp1.pkg)
     sleep (2000)
 
     then:
-    String latest_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkgAdd, PackageService.ExportType.KBART_TIPP))
+    String latest_filename = packageCSVExportService.getLatestFile(filePath, packageCSVExportService.generateExportFileName(testPkgAdd, PackageCSVExportService.ExportType.KBART_TIPP))
     File file = new File(filePath + latest_filename)
 
     file.isFile()
 
-    def csv = packageService.initReader(filePath + latest_filename)
+    def csv = packageCSVExportService.initReader(filePath + latest_filename)
     String[] header = csv.readNext().collect { it.toLowerCase().trim() }
     def col_positions = [:]
     int col_ctr = 0
@@ -480,7 +480,7 @@ class PackageServiceSpec extends Specification {
     given:
     def testPkgUpdate = Package.findByName('PackageService Test FirstLine')
 
-    String old_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkgUpdate, PackageService.ExportType.KBART_TIPP))
+    String old_filename = packageCSVExportService.getLatestFile(filePath, packageCSVExportService.generateExportFileName(testPkgUpdate, PackageCSVExportService.ExportType.KBART_TIPP))
     File old_file = new File(filePath + old_filename)
 
     if (old_file.isFile()) {
@@ -488,7 +488,7 @@ class PackageServiceSpec extends Specification {
     }
 
     sleep(1000)
-    packageService.createKbartExport(testPkgUpdate)
+    packageCSVExportService.createKbartExport(testPkgUpdate)
     sleep(500)
 
     def tipp1 = TitleInstancePackagePlatform.findByName('PackageService BookTipp 3')
@@ -502,16 +502,16 @@ class PackageServiceSpec extends Specification {
     testPkgUpdate.save(flush: true)
 
     when:
-    packageService.createKbartExport(testPkgUpdate)
+    packageCSVExportService.createKbartExport(testPkgUpdate)
     sleep(3000)
 
     then:
-    String latest_filename = packageService.getLatestFile(filePath, packageService.generateExportFileName(testPkgUpdate, PackageService.ExportType.KBART_TIPP))
+    String latest_filename = packageCSVExportService.getLatestFile(filePath, packageCSVExportService.generateExportFileName(testPkgUpdate, PackageCSVExportService.ExportType.KBART_TIPP))
     File file = new File(filePath + latest_filename)
 
     file.isFile()
 
-    def csv = packageService.initReader(filePath + latest_filename)
+    def csv = packageCSVExportService.initReader(filePath + latest_filename)
     String[] header = csv.readNext().collect { it.toLowerCase().trim() }
     def col_positions = [:]
     int col_ctr = 0

@@ -19,7 +19,8 @@ class WorkflowController{
   def springSecurityService
   def reviewRequestService
   def componentLookupService
-  def packageService
+  def packageCSVExportService
+  def packageSourceUpdateService
   def dateFormatService
   def concurrencyManagerService
   def titleAugmentService
@@ -1671,7 +1672,7 @@ class WorkflowController{
       response.setHeader("Content-disposition", "attachment; filename=\"${filename}\"")
       response.contentType = "text/tab-separated-values" // "text/tsv"
       packages_to_export.each{ pkg ->
-        packageService.sendFile(pkg, PackageService.ExportType.KBART, response)
+        packageCSVExportService.sendFile(pkg, PackageCSVExportService.ExportType.KBART, response)
       }
     }
     catch (Exception e){
@@ -1735,7 +1736,7 @@ class WorkflowController{
       response.contentType = "text/tab-separated-values" // "text/tsv"
 
       packages_to_export.each{ pkg ->
-        packageService.sendFile(pkg, PackageService.ExportType.TSV, response)
+        packageCSVExportService.sendFile(pkg, PackageCSVExportService.ExportType.TSV, response)
       }
     }
     catch (Exception e){
@@ -1934,7 +1935,7 @@ class WorkflowController{
 
           if (pkgObj?.isEditable() && (is_curator || !curated_pkg || user.authorities.contains(Role.findByAuthority('ROLE_SUPERUSER')))){
             Job background_job = concurrencyManagerService.createJob { Job job ->
-              result = packageService.updateFromSource(pkgObj, user, job)
+              result = packageSourceUpdateService.updateFromSource(pkgObj, user, job)
             }
 
             background_job.groupId = is_curator?.size() > 0 ? is_curator[0] : null

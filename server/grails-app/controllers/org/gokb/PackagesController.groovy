@@ -16,6 +16,7 @@ class PackagesController {
   def concurrencyManagerService
   def TSVIngestionService
   def packageService
+  def packageCSVExportService
 
   public static String TIPPS_QRY = 'select tipp from TitleInstancePackagePlatform as tipp, Combo as c where c.fromComponent.id = :pkg and c.toComponent = tipp  and c.type.value = :ct order by tipp.id';
 
@@ -315,7 +316,7 @@ class PackagesController {
   def kbart() {
     if (request.method == "POST") {
       def packs = []
-      def type = request.JSON.data.exportType=='title'?PackageService.ExportType.KBART_TITLE:PackageService.ExportType.KBART_TIPP
+      def type = request.JSON.data.exportType == 'title' ? PackageCSVExportService.ExportType.KBART_TITLE : PackageCSVExportService.ExportType.KBART_TIPP
 
       request.JSON.data.ids.each { id ->
         def pkg = Package.findByUuid(id) ?: (genericOIDService.oidToId(id) ? Package.get(genericOIDService.oidToId(id)) : null)
@@ -324,17 +325,17 @@ class PackagesController {
           packs << pkg
       }
 
-      packageService.sendZip(packs, type, response)
+      packageCSVExportService.sendZip(packs, type, response)
     }
     else {
       def ids = params.list('pkg')
-      def type = params.exportType == 'title' ? PackageService.ExportType.KBART_TITLE : PackageService.ExportType.KBART_TIPP
+      def type = params.exportType == 'title' ? PackageCSVExportService.ExportType.KBART_TITLE : PackageCSVExportService.ExportType.KBART_TIPP
 
       if (!ids || ids.size() <= 1) {
         def pkg = Package.findByUuid(params.id) ?: (genericOIDService.oidToId(params.id) ? Package.get(genericOIDService.oidToId(params.id)) : null)
 
         if (pkg)
-          packageService.sendFile(pkg, type, response)
+          packageCSVExportService.sendFile(pkg, type, response)
         else
           log.error("Cant find package with ID ${params.id}")
           response.status = 404
@@ -348,7 +349,7 @@ class PackagesController {
             packs << pkg
         }
 
-        packageService.sendZip(packs, type, response)
+        packageCSVExportService.sendZip(packs, type, response)
       }
     }
   }
@@ -365,7 +366,7 @@ class PackagesController {
           packs << pkg
       }
 
-      packageService.sendZip(packs, PackageService.ExportType.TSV, response)
+      packageCSVExportService.sendZip(packs, PackageCSVExportService.ExportType.TSV, response)
     }
     else {
       def ids = params.list('pkg')
@@ -373,13 +374,14 @@ class PackagesController {
       if (ids?.size() == 0) {
         if (params.id == "all") {
           Package.all.each { pack ->
-            packageService.createTsvExport(pack)
+            packageCSVExportService.createTsvExport(pack)
           }
           return response
         }
         def pkg = Package.findByUuid(params.id) ?: (genericOIDService.oidToId(params.id) ? Package.get(genericOIDService.oidToId(params.id)) : null)
+
         if (pkg)
-          packageService.sendFile(pkg, PackageService.ExportType.TSV, response)
+          packageCSVExportService.sendFile(pkg, PackageCSVExportService.ExportType.TSV, response)
         else
           log.error("Cant find package with ID ${params.id}")
           response.status = 404
@@ -392,7 +394,7 @@ class PackagesController {
             packs << pkg
         }
 
-        packageService.sendZip(packs, PackageService.ExportType.TSV, response)
+        packageCSVExportService.sendZip(packs, PackageCSVExportService.ExportType.TSV, response)
       }
     }
   }

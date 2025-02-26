@@ -23,17 +23,17 @@ class PackageCachingService {
   def concurrencyManagerService
   def dateFormatService
   def grailsApplication
-  def packageService
+  def packageCSVExportService
   def jobManagerService
   def sessionFactory
 
   static boolean activeCaching = false
 
-  def synchronized cachePackageXml(boolean force = false, Job job = null) {
+  def synchronized cachePackage(boolean force = false, Job job = null) {
     def result = null
 
     if (activeCaching == false) {
-      log.debug("CachePackageXml started ..")
+      log.debug("CachePackage started ..")
       activeCaching = true
 
       result = updatePackageCaches(force, job)
@@ -58,12 +58,12 @@ class PackageCachingService {
       def ids = Package.executeQuery("select id from Package")
 
       for (id in ids) {
+        def single_result = cacheSinglePackage(id, force)
 
-        cacheSinglePackage(id, force)
         session.flush()
         session.clear()
 
-        if (Thread.currentThread().isInterrupted()) {
+        if (single_result == 'CANCELLED' || Thread.currentThread().isInterrupted()) {
           log.debug("Job was cancelled..")
           cancelled = true
           result = 'CANCELLED'
@@ -344,10 +344,6 @@ class PackageCachingService {
             if (!force || !currentCacheFile || item.lastUpdated > currentCacheDate) {
               Package.executeUpdate("update Package p set p.lastCachedDate = :lcd where p.id = :pid", [lcd: new Date(cachedRecord.lastModified()), pid: item.id])
             }
-
-            log.info("Caching KBART ..")
-            packageService.updateKbartExport(item)
-            log.info("Finished caching KBART file")
           }
           else {
             result = 'CANCELLED'
@@ -365,6 +361,10 @@ class PackageCachingService {
       }
       catch (Exception e) {
         log.error("Exception in Package Caching for ID ${id}!", e)
+      }
+
+      if (result != 'CANCELLED' && (force || result != 'SKIPPED_CURRENTLY_CHANGING')) {
+        result = packageCSVExportService.updateExportFiles(item)
       }
     }
     else if (!item) {
