@@ -13,6 +13,12 @@ class UrlMappings {
     "/resource/show/$type/$id"(controller: 'resource', action: 'show')
     "/package"(controller: 'packages')
     "/validate"(controller: 'validation')
+    get "/externalSource"(controller: 'externalSourceImport')
+    get "/externalSource/package?"(controller: 'externalSourceImport', action: 'getPackageMetaData')
+    get "/externalSource/platform?"(controller: 'externalSourceImport', action: 'getPlatformMetaData')
+    get "/externalSource/tipps?"(controller: 'externalSourceImport', action: 'getTitleData')
+    get "/externalSource/provider?"(controller: 'externalSourceImport', action: 'getProviderData')
+    post "/externalSource/providerExists"(controller: 'externalSourceImport', action: 'checkProviderExists')
 
     group "/rest", {
       post "/packages/$id/retire"(controller: 'package', namespace: 'rest', action:'retire')
@@ -101,6 +107,7 @@ class UrlMappings {
       put "/users/$id"(controller: 'users', namespace: 'rest', action: 'update')
       patch "/users/$id"(controller: 'users', namespace: 'rest', action: 'update')
       delete "/users/$id"(controller: 'users', namespace: 'rest', action: 'delete')
+      patch "/users/$id/activate"(controller: 'users', namespace: 'rest', action: 'activate')
 
       get "/sources"(controller: 'sources', namespace: 'rest', action: 'index')
       get "/sources/$id"(controller: 'sources', namespace: 'rest', action: 'show')

@@ -31,7 +31,7 @@ class OrgController {
   def index() {
     log.debug("Org index query: ${params}")
     def result = [:]
-    def base = grailsApplication.config.getProperty('serverURL', String, "") + "/rest"
+    def base = grailsApplication.config.getProperty('grails.serverURL', String, "") + "/rest"
     User user = null
 
     if (springSecurityService.isLoggedIn()) {
@@ -64,7 +64,7 @@ class OrgController {
   def show() {
     def result = [:]
     def obj = null
-    def base = grailsApplication.config.getProperty('serverURL', String, "") + "/rest"
+    def base = grailsApplication.config.getProperty('grails.serverURL', String, "") + "/rest"
     def is_curator = true
     User user = null
 
@@ -165,9 +165,13 @@ class OrgController {
           }
 
           errors << orgService.updateCombos(obj, reqBody)
+          if(errors) {
+            obj.expunge()
+          }
         }
         else {
           errors << messageService.processValidationErrors(obj.errors, request.locale)
+          obj.expunge()
         }
 
         result = restMappingService.mapObjectToJson(obj, params, user)

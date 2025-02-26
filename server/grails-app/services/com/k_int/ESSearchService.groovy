@@ -43,7 +43,9 @@ class ESSearchService{
           "importId",
           "primaryUrl",
           "editionStatement",
-          "volumeNumber"
+          "volumeNumber",
+          "firstAuthor",
+          "firstEditor"
       ],
       refdata: [
           "listStatus",
@@ -327,6 +329,10 @@ class ESSearchService{
   private void addDateQueries(query, errors, qpars) {
     if (qpars.changedSince || qpars.changedBefore) {
       QueryBuilder dateQuery = QueryBuilders.rangeQuery("lastUpdatedDisplay")
+
+      if (qpars.sort == null) {
+        qpars.sort = 'lastUpdatedDisplay'
+      }
 
       if (qpars.changedSince) {
         dateQuery.gte(qpars.changedSince)
@@ -673,6 +679,7 @@ class ESSearchService{
       specifyQueryWithParams(params, scrollQuery, errors, unknown_fields)
 
       SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
+      setSort(params, errors, searchSourceBuilder)
       searchSourceBuilder.query(scrollQuery)
       searchSourceBuilder.size(scrollSize)
       SearchRequest searchRequest = new SearchRequest(usedComponentTypes.values() as String[])
@@ -755,6 +762,7 @@ class ESSearchService{
     def result = [result: 'OK']
     def search_action = null
     def errors = [:]
+    Integer maxWindowSize = 10000
     SearchResponse searchResponse = null
     log.debug("find :: ${params}")
 
@@ -780,7 +788,7 @@ class ESSearchService{
       }
 
       if( !errors && exactQuery.hasClauses() ) {
-        if (!params.status) {
+        if (!params.status && (!user || !user.isAdmin())) {
           QueryBuilder statusQuery = QueryBuilders.boolQuery()
           statusQuery.mustNot(QueryBuilders.termQuery('status', 'Deleted'))
           exactQuery.must(statusQuery)
@@ -796,18 +804,32 @@ class ESSearchService{
         checkInt(result, errors, params.from, 'offset')
         checkInt(result, errors, params.offset, 'offset')
 
-        if (params.max != null) {
-          searchSourceBuilder.size(result.max)
+        if (result.max != null) {
+          if (result.max > maxWindowSize) {
+            errors['max'] = "Maximum result window size is ${maxWindowSize}. Use /scroll endpoint for deep pagination."
+          }
+          else {
+            searchSourceBuilder.size(result.max)
+          }
         }
         else {
           result.max = 10
         }
 
-        if (params.offset || params.from) {
-          searchSourceBuilder.from(result.offset)
+        if (result.offset) {
+          if (result.offset > maxWindowSize) {
+            errors['offset'] = "Maximum result window size is ${maxWindowSize}. Use /scroll endpoint for deep pagination."
+          }
+          else {
+            searchSourceBuilder.from(result.offset)
+          }
         }
         else {
           result.offset = 0
+        }
+
+        if (!errors['max'] && !errors['offset'] && result.offset + result.max > maxWindowSize) {
+          errors['offset'] = "Maximum result window size (max + offset) is ${maxWindowSize}. Use /scroll endpoint for deep pagination."
         }
 
         setSort(params, errors, searchSourceBuilder)
