@@ -29,11 +29,11 @@ class PackageCachingService {
 
   static boolean activeCaching = false
 
-  def synchronized cachePackage(boolean force = false, Job job = null) {
+  def synchronized cachePackages(boolean force = false, Job job = null) {
     def result = null
 
     if (activeCaching == false) {
-      log.debug("CachePackage started ..")
+      log.debug("CachePackages started ..")
       activeCaching = true
 
       result = updatePackageCaches(force, job)

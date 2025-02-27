@@ -68,7 +68,7 @@ class PackageCSVExportService {
   }
 
   public String updateExportFiles(Package pkg, boolean force = false) {
-    log.info("Caching KBART for ${pkg}..")
+    //log.info("Caching KBART & CSV for ${pkg}..")
     String result = 'OK'
     def activeJobs = concurrencyManagerService.getComponentJobs(pkg.id)
 
@@ -80,13 +80,13 @@ class PackageCSVExportService {
       }
 
       if (result == 'OK') {
-        result = createTsvExport(pkg, ExportType.TSV, force)
+        result = createTsvExport(pkg, force)
       }
     }
     else {
       result = 'SKIPPED_ACTIVE_JOB'
     }
-    log.info("Finished caching KBART file")
+    //log.info("Finished caching KBART & CSV files")
 
     result
   }
@@ -94,11 +94,11 @@ class PackageCSVExportService {
   /**
    * collects the data of the given package into a KBART formatted TSV file for later download
    */
-  public String createKbartExport(Package pkg, ExportType exportType = ExportType.KBART_TIPP, boolean force_rewrite = false) {
-    log.debug("createKbartExport :: Package ${pkg}, type: ${exportType}, rewrite: ${force_rewrite}")
+  private String createKbartExport(Package pkg, ExportType exportType = ExportType.KBART_TIPP, boolean force_rewrite = false) {
     String result = 'OK'
 
     if (pkg) {
+      String oldExportFileName = generateExportFileName(pkg, exportType, false)
       String exportFileName = generateExportFileName(pkg, exportType)
       String path = exportFilePath()
       def activeJobs = concurrencyManagerService.getComponentJobs(pkg.id)
@@ -107,17 +107,23 @@ class PackageCSVExportService {
         try {
           boolean selectiveUpdate = false
           boolean cancelled = false
-          String latestFileName = getLatestFile(path, exportFileName)
+          String latestFileName = getLatestFile(pkg, path, oldExportFileName, exportType)
           Date parsed_date
           def existingFileMap = [:]
           File out = new File("${path}${exportFileName}")
+          File old_out = new File("${path}${oldExportFileName}")
 
-          if (out.isFile()) {
-            log.debug("createKbartExport :: File ${exportFileName} already exists!")
+          if (!force_rewrite && out.isFile()) {
+            // log.debug("createKbartExport :: Current file for new uuid pattern ${exportFileName} already exists!")
             return result
           }
 
-          log.debug("createKbartExport :: Got previous file ${latestFileName}")
+          if (!force_rewrite && old_out.isFile()) {
+            // log.debug("createKbartExport :: Current file for old name pattern ${oldExportFileName} already exists!")
+            return result
+          }
+
+          log.info("createKbartExport :: Package ${pkg}, type: ${exportType}, rewrite: ${force_rewrite}")
 
           if (latestFileName && !force_rewrite) {
             parsed_date = dateFormatService.parseTimestamp(latestFileName.substring(latestFileName.length() - 23, latestFileName.length() - 4))
@@ -251,6 +257,7 @@ class PackageCSVExportService {
               }
 
               if (Thread.currentThread().isInterrupted()) {
+                log.info("KBART caching was cancelled!")
                 cancelled = true
                 break
               }
@@ -276,7 +283,7 @@ class PackageCSVExportService {
 
           if (!cancelled) {
             new File(path).list().each { fileName ->
-              if (fileName.startsWith(exportFileName.substring(0, exportFileName.length() - 21))) {
+              if (fileName.startsWith(oldExportFileName.substring(0, oldExportFileName.length() - 21)) || fileName.startsWith(exportFileName.substring(0, exportFileName.length() - 21))) {
                 log.debug("Deleting old file ${fileName} for ${exportFileName}")
                 new File(path + fileName).delete()
               }
@@ -293,6 +300,8 @@ class PackageCSVExportService {
           log.error("Problem with creating KBART export data", e)
           result = 'ERROR'
         }
+
+        log.info("createKbartExport :: Finished caching for Package ${pkg}, type: ${exportType}, rewrite: ${force_rewrite}")
       }
       else {
         log.debug("createKbartExport:: Waiting for active Jobs to finish!")
@@ -305,9 +314,10 @@ class PackageCSVExportService {
     result
   }
 
-  public String createTsvExport(Package pkg, boolean force_rewrite = false) {
+  private String createTsvExport(Package pkg, boolean force_rewrite = false) {
     String result = 'OK'
     def export_date = dateFormatService.formatDate(new Date())
+    String oldExportFileName = generateExportFileName(pkg, ExportType.TSV, false)
     String exportFileName = generateExportFileName(pkg, ExportType.TSV)
     String path = exportFilePath()
     String pkgName = pkg.name
@@ -318,13 +328,23 @@ class PackageCSVExportService {
         if (pkg) {
           boolean selectiveUpdate = false
           boolean cancelled = false
-          def latestFileName = getLatestFile(path, exportFileName)
+          def latestFileName = getLatestFile(pkg, path, oldExportFileName, ExportType.TSV)
           Date parsed_date
           def existingFileMap = [:]
-          def out = new File("${path}${exportFileName}")
+          File out = new File("${path}${exportFileName}")
+          File old_out = new File("${path}${oldExportFileName}")
 
-          if (out.isFile())
-            return
+          if (!force_rewrite && out.isFile()) {
+            // log.debug("createTsvExport :: Current file for new uuid pattern ${exportFileName} already exists!")
+            return result
+          }
+
+          if (!force_rewrite && old_out.isFile()) {
+            // log.debug("createTsvExport :: Current file for old name pattern ${oldExportFileName} already exists!")
+            return result
+          }
+
+          log.info("createTsvExport :: Caching start for Package ${pkg}, rewrite: ${force_rewrite}")
 
           if (latestFileName && !force_rewrite) {
             selectiveUpdate = true
@@ -480,7 +500,7 @@ class PackageCSVExportService {
               }
 
               if (selectiveUpdate) {
-                Map orderedMap = existingFileMap.sort { it.value[0][0].toLowerCase() }
+                Map orderedMap = existingFileMap.sort { it.value[0][3].toLowerCase() }
 
                 orderedMap.each { uuid, rows ->
                   rows.each { row_items ->
@@ -515,6 +535,8 @@ class PackageCSVExportService {
         log.error("Problem with writing tsv export file", e)
         result = 'ERROR'
       }
+
+      log.info("createTsvExport :: Finished caching for Package ${pkg}, rewrite: ${force_rewrite}")
     }
     else {
       log.debug("createTsvExport:: Waiting for active Jobs to finish!")
@@ -523,11 +545,23 @@ class PackageCSVExportService {
     result
   }
 
-  private def getLatestFile(path, filename) {
+  private def getLatestFile(pkg, path, filename, type) {
     def result = null
 
+    String type_string = null
+
+    if (type == ExportType.KBART_TITLE) {
+      type_string = 'Local'
+    }
+    else if (type == ExportType.KBART_TITLE) {
+      type_string = 'Processed'
+    }
+    else if (type == ExportType.TSV) {
+      type_string = 'GOKBPackage'
+    }
+
     new File(path).list().each { someFileName ->
-      if (someFileName.startsWith(filename.substring(0, filename.length() - 21))) {
+      if (someFileName.startsWith("${pkg.uuid}_${type_string}") || someFileName.startsWith(filename.substring(0, filename.length() - 21))) {
         result = someFileName
       }
     }
@@ -535,15 +569,15 @@ class PackageCSVExportService {
     result
   }
 
-  void sendFile(Package pkg, ExportType type, def response) {
+  public void sendFile(Package pkg, ExportType type, def response) {
     def path = exportFilePath()
-    String fileName = generateExportFileName(pkg, type)
+    String fileName = generateExportFileName(pkg, type, false)
 
     try {
       File file = new File(path + fileName)
 
       if (!file.isFile()) {
-        def latest = getLatestFile(path, fileName)
+        def latest = getLatestFile(pkg, path, fileName, type)
 
         if (latest) {
           file = new File(path + latest)
@@ -611,14 +645,14 @@ class PackageCSVExportService {
     tempDir.mkdir()
     // step one: collect data files in temp directory
     packs.each { pkg ->
-      String fileName = generateExportFileName(pkg, type)
+      String fileName = generateExportFileName(pkg, type, false)
       boolean fileErrors = false
 
       try {
         File src = new File(path + fileName)
 
         if (!src.isFile()) {
-          def latest = getLatestFile(path, fileName)
+          def latest = getLatestFile(pkg, path, fileName, type)
 
           if (latest) {
             src = new File(path + latest)
@@ -692,19 +726,37 @@ class PackageCSVExportService {
     url.replace("://", "_").replace(".", "_").replace("/", "_")
   }
 
-  private String generateExportFileName(Package pkg, ExportType type) {
+  private String generateExportFileName(Package pkg, ExportType type, boolean uuid_name = true) {
     String lastUpdate = dateFormatService.formatTimestamp(pkg.lastUpdated)
     StringBuilder name = new StringBuilder()
-    if (type in [ExportType.KBART_TIPP, ExportType.KBART_TITLE] ) {
-      name.append(toCamelCase(pkg.provider?.name ? pkg.provider.name : "Unknown Provider")).append('_')
-          .append(toCamelCase(pkg.global.value)).append('_')
-          .append(toCamelCase(pkg.name))
-          .append(type == ExportType.KBART_TITLE ? '_Processed' : '')
+
+    if (uuid_name) {
+      name.append(pkg.uuid)
+
+      if (type == ExportType.KBART_TITLE) {
+        name.append('_Local')
+      }
+      else if (type == ExportType.KBART_TITLE) {
+        name.append('_Processed')
+      }
+      else if (type == ExportType.TSV) {
+        name.append('_GOKBPackage')
+      }
     }
     else {
-      name.append("GoKBPackage-").append(pkg.id)
+      if (type in [ExportType.KBART_TIPP, ExportType.KBART_TITLE] ) {
+        name.append(toCamelCase(pkg.provider?.name ? pkg.provider.name : "Unknown Provider")).append('_')
+            .append(toCamelCase(pkg.global.value)).append('_')
+            .append(toCamelCase(pkg.name))
+            .append(type == ExportType.KBART_TITLE ? '_Processed' : '')
+      }
+      else {
+        name.append("GoKBPackage-").append(pkg.id)
+      }
     }
+
     name.append('_').append(lastUpdate).append('.txt')
+
     return name.toString()
   }
 
@@ -730,7 +782,7 @@ class PackageCSVExportService {
 
   private String pick(def tippPropValue, def titlePropValue, ExportType exportType) {
     if (tippPropValue && titlePropValue){
-      return (exportType==ExportType.KBART_TIPP) ? tippPropValue : titlePropValue
+      return (exportType == ExportType.KBART_TIPP) ? tippPropValue : titlePropValue
     }
     else if (tippPropValue){
       return tippPropValue
@@ -742,7 +794,7 @@ class PackageCSVExportService {
 
   private String selectDateField(tippPropValue, titlePropValue, ExportType exportType) {
     if (tippPropValue && titlePropValue){
-      return (exportType==ExportType.KBART_TIPP) ? dateFormatService.formatDate(tippPropValue) : dateFormatService.formatDate(titlePropValue)
+      return (exportType == ExportType.KBART_TIPP) ? dateFormatService.formatDate(tippPropValue) : dateFormatService.formatDate(titlePropValue)
     }
     else if (tippPropValue){
       return dateFormatService.formatDate(tippPropValue)
@@ -912,6 +964,8 @@ class PackageCSVExportService {
         sanitize(tipp.getIdentifierValue('isbn') ?: ti?.getIdentifierValue('isbn')),
         sanitize(tipp.getIdentifierValue('pisbn') ?: ti?.getIdentifierValue('pisbn'))
       ]
+
+      recordList << record
     }
 
     return recordList

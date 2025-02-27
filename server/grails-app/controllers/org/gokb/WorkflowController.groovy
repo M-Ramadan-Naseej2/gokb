@@ -1917,6 +1917,7 @@ class WorkflowController{
     def user = springSecurityService.currentUser
     def pars = [:]
     def denied = false
+    Boolean restrictSize = !user.isAdmin()
 
     if (packages_to_update.size() > 1){
       flash.error = "Please select a single Package to update!"
@@ -1935,7 +1936,7 @@ class WorkflowController{
 
           if (pkgObj?.isEditable() && (is_curator || !curated_pkg || user.authorities.contains(Role.findByAuthority('ROLE_SUPERUSER')))){
             Job background_job = concurrencyManagerService.createJob { Job job ->
-              result = packageSourceUpdateService.updateFromSource(pkgObj, user, job)
+              packageSourceUpdateService.updateFromSource(pkgObj.id, user.id, job, null, false, restrictSize)
             }
 
             background_job.groupId = is_curator?.size() > 0 ? is_curator[0] : null
