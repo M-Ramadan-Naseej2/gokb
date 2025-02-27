@@ -284,7 +284,8 @@ class PackageCSVExportServiceSpec extends Specification {
   void "Test caching new TIPP KBART - test new file with monograph"() {
     given:
     def testPkg = Package.findByName('PackageService Test Package')
-    def old_filename = packageCSVExportService.getLatestFile(filePath, packageCSVExportService.generateExportFileName(testPkg, PackageCSVExportService.ExportType.KBART_TIPP))
+    String old_fn_pattern = packageCSVExportService.generateExportFileName(testPkg, PackageCSVExportService.ExportType.KBART_TIPP)
+    def old_filename = packageCSVExportService.getLatestFile(testPkg, filePath, old_fn_pattern, PackageCSVExportService.ExportType.KBART_TIPP)
     def old_file = new File(filePath + old_filename)
 
     if (old_file.isFile()) {
@@ -297,7 +298,8 @@ class PackageCSVExportServiceSpec extends Specification {
 
     then:
     sleep(3000)
-    String latest_filename = packageCSVExportService.getLatestFile(filePath, packageCSVExportService.generateExportFileName(testPkg, PackageCSVExportService.ExportType.KBART_TIPP))
+    String new_fn_pattern = packageCSVExportService.generateExportFileName(testPkg, PackageCSVExportService.ExportType.KBART_TIPP)
+    String latest_filename = packageCSVExportService.getLatestFile(testPkg, filePath, new_fn_pattern, PackageCSVExportService.ExportType.KBART_TIPP)
     File file = new File(filePath + latest_filename)
 
     assert file.isFile()
@@ -347,7 +349,8 @@ class PackageCSVExportServiceSpec extends Specification {
   void "Test caching updated TIPP KBART - new TIPP"() {
     given:
     def testPkgAdd = Package.findByName('PackageService Test AddJournal')
-    String old_filename = packageCSVExportService.getLatestFile(filePath, packageCSVExportService.generateExportFileName(testPkgAdd, PackageCSVExportService.ExportType.KBART_TIPP))
+    String old_fn_pattern = packageCSVExportService.generateExportFileName(testPkgAdd, PackageCSVExportService.ExportType.KBART_TIPP)
+    String old_filename = packageCSVExportService.getLatestFile(testPkgAdd, filePath, old_fn_pattern, PackageCSVExportService.ExportType.KBART_TIPP)
     File old_file = new File(filePath + old_filename)
 
     if (old_file.isFile()) {
@@ -404,7 +407,8 @@ class PackageCSVExportServiceSpec extends Specification {
     sleep (2000)
 
     then:
-    String latest_filename = packageCSVExportService.getLatestFile(filePath, packageCSVExportService.generateExportFileName(testPkgAdd, PackageCSVExportService.ExportType.KBART_TIPP))
+    String latest_fn_pattern = packageCSVExportService.generateExportFileName(testPkgAdd, PackageCSVExportService.ExportType.KBART_TIPP)
+    String latest_filename = packageCSVExportService.getLatestFile(testPkgAdd, filePath, latest_fn_pattern, PackageCSVExportService.ExportType.KBART_TIPP)
     File file = new File(filePath + latest_filename)
 
     file.isFile()
@@ -479,8 +483,8 @@ class PackageCSVExportServiceSpec extends Specification {
   void "Test caching updated TIPP KBART - updated TIPP fields"() {
     given:
     def testPkgUpdate = Package.findByName('PackageService Test FirstLine')
-
-    String old_filename = packageCSVExportService.getLatestFile(filePath, packageCSVExportService.generateExportFileName(testPkgUpdate, PackageCSVExportService.ExportType.KBART_TIPP))
+    String old_fn_pattern = packageCSVExportService.generateExportFileName(testPkgUpdate, PackageCSVExportService.ExportType.KBART_TIPP)
+    String old_filename = packageCSVExportService.getLatestFile(testPkgUpdate, filePath, old_fn_pattern, PackageCSVExportService.ExportType.KBART_TIPP)
     File old_file = new File(filePath + old_filename)
 
     if (old_file.isFile()) {
@@ -506,7 +510,8 @@ class PackageCSVExportServiceSpec extends Specification {
     sleep(3000)
 
     then:
-    String latest_filename = packageCSVExportService.getLatestFile(filePath, packageCSVExportService.generateExportFileName(testPkgUpdate, PackageCSVExportService.ExportType.KBART_TIPP))
+    String latest_fn_pattern = packageCSVExportService.generateExportFileName(testPkgUpdate, PackageCSVExportService.ExportType.KBART_TIPP)
+    String latest_filename = packageCSVExportService.getLatestFile(testPkgUpdate, filePath, latest_fn_pattern, PackageCSVExportService.ExportType.KBART_TIPP)
     File file = new File(filePath + latest_filename)
 
     file.isFile()
