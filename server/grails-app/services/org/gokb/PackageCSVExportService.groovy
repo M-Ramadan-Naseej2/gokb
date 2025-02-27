@@ -14,7 +14,10 @@ import groovy.util.logging.Slf4j
 
 import java.nio.file.Files
 import java.nio.file.Paths
+import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -108,10 +111,10 @@ class PackageCSVExportService {
           boolean selectiveUpdate = false
           boolean cancelled = false
           String latestFileName = getLatestFile(pkg, path, oldExportFileName, exportType)
-          Date parsed_date
           def existingFileMap = [:]
           File out = new File("${path}${exportFileName}")
           File old_out = new File("${path}${oldExportFileName}")
+          Date currentCacheDate = latestFileName ? dateFormatService.parseTimestamp(latestFileName.substring(latestFileName.length() - 23, latestFileName.length() - 4)) : null
 
           if (!force_rewrite && out.isFile()) {
             // log.debug("createKbartExport :: Current file for new uuid pattern ${exportFileName} already exists!")
@@ -123,177 +126,177 @@ class PackageCSVExportService {
             return result
           }
 
-          log.info("createKbartExport :: Package ${pkg}, type: ${exportType}, rewrite: ${force_rewrite}")
+          log.debug("Existing file: ${latestFileName}")
 
-          if (latestFileName && !force_rewrite) {
-            parsed_date = dateFormatService.parseTimestamp(latestFileName.substring(latestFileName.length() - 23, latestFileName.length() - 4))
-            CSVReader csv = initReader(path + latestFileName)
+          if (!force_rewrite || (Duration.between(pkg.lastUpdated.toInstant(), Instant.now()).getSeconds() > 60 && (!latestFileName || pkg.lastUpdated > currentCacheDate))) {
+            log.info("createKbartExport :: Package ${pkg}, type: ${exportType}, rewrite: ${force_rewrite}")
 
-            String[] header = csv.readNext().collect { it.toLowerCase().trim() }
-            def col_positions = [:]
-            int col_ctr = 0
-            boolean header_conflicts = false
+            if (latestFileName && !force_rewrite) {
+              CSVReader csv = initReader(path + latestFileName)
 
-            header.each { col ->
-              if (col != KBART_FIELDS[col_ctr]) {
-                log.error("createKbartExport :: Header conflict in KBART caching .. ${col} != ${KBART_FIELDS[col_ctr]}")
-                header_conflicts = true
+              String[] header = csv.readNext().collect { it.toLowerCase().trim() }
+              def col_positions = [:]
+              int col_ctr = 0
+              boolean header_conflicts = false
+
+              header.each { col ->
+                if (col != KBART_FIELDS[col_ctr]) {
+                  log.error("createKbartExport :: Header conflict in KBART caching .. ${col} != ${KBART_FIELDS[col_ctr]}")
+                  header_conflicts = true
+                }
+
+                col_positions[col] = col_ctr++
               }
 
-              col_positions[col] = col_ctr++
-            }
-
-            if (header_conflicts) {
-              log.warn("createKbartExport :: No selective update due to header discrepancies!")
-            }
-            else {
-              selectiveUpdate = true
-              boolean more = true
-
-              while (more) {
-                String[] row_data = csv.readNext()
-
-                if (row_data) {
-                  def tipp_uuid = row_data[col_positions['gokb_tipp_uid']]
-
-                  if (!existingFileMap[tipp_uuid]) {
-                    existingFileMap[tipp_uuid] = []
-                  }
-
-                  existingFileMap[tipp_uuid].push(row_data)
-                }
-                else {
-                  more = false
-                }
-              }
-
-              log.debug("createKbartExport :: Old map has ${existingFileMap.keySet().size()} entries!")
-            }
-          }
-
-          def tmpFile = new File("${grailsApplication.config.getProperty('gokb.baseTempDirectory')}${exportFileName}")
-
-          if (tmpFile.isFile()) {
-            tmpFile.delete()
-          }
-
-          tmpFile.withWriter { writer ->
-            // As per spec header at top of file / section
-            // II: Need to add in preceding_publication_title_id
-            KBART_FIELDS.eachWithIndex { field, i ->
-              writer.write(field)
-              writer.write(i < KBART_FIELDS.size() - 1 ? '\t' : '\n')
-            }
-
-            def session = sessionFactory.getCurrentSession()
-            def combo_tipps = RefdataCategory.lookup('Combo.Type', 'Package.Tipps')
-            def status_current = RefdataCategory.lookup('KBComponent.Status', 'Current')
-            def status_expected = RefdataCategory.lookup('KBComponent.Status', 'Expected')
-            def qry_string_full = '''select tipp.id from TitleInstancePackagePlatform as tipp,
-                                               Combo as c
-                                               where c.fromComponent.id = :p
-                                               and c.toComponent = tipp
-                                               and tipp.status in (:status)
-                                               and c.type = :ct
-                                               order by tipp.id'''
-            def qry_string_selective = '''select tipp.id from TitleInstancePackagePlatform as tipp,
-                                               Combo as c
-                                               where c.fromComponent.id = :p
-                                               and c.toComponent = tipp
-                                               and c.type = :ct
-                                               and tipp.lastUpdated > :ts
-                                               order by tipp.id'''
-
-
-            def query = session.createQuery(selectiveUpdate ? qry_string_selective : qry_string_full)
-            query.setReadOnly(true)
-            query.setParameter('p', pkg.getId(), StandardBasicTypes.LONG)
-            query.setParameter('ct', combo_tipps)
-
-            if (!selectiveUpdate) {
-              query.setParameterList('status', [status_current, status_expected])
-            }
-            else {
-              query.setParameter('ts', parsed_date)
-            }
-
-            ScrollableResults tippIDs = query.scroll(ScrollMode.FORWARD_ONLY)
-            int ctr = 0
-
-            while (tippIDs.next()) {
-              def tipp_id = tippIDs.get(0)
-              TitleInstancePackagePlatform tipp = TitleInstancePackagePlatform.get(tipp_id)
-
-              if (selectiveUpdate) {
-                if (tipp.status != status_expected && tipp.status != status_current && existingFileMap[tipp.uuid]) {
-                  existingFileMap.remove(tipp.uuid)
-                }
-                else {
-                  existingFileMap[tipp.uuid] = []
-
-                  kbartRecordsFor(tipp, exportType).each { record ->
-                    def new_row_data = []
-
-                    KBART_FIELDS.eachWithIndex { fieldName, i ->
-                      new_row_data << sanitize(record[fieldName])
-                    }
-
-                    existingFileMap[tipp.uuid].push(new_row_data)
-                  }
-                }
+              if (header_conflicts) {
+                log.warn("createKbartExport :: No selective update due to header discrepancies!")
               }
               else {
-                kbartRecordsFor(tipp, exportType).each { record ->
-                  KBART_FIELDS.eachWithIndex { fieldName, i ->
-                    writer.write(sanitize(record[fieldName]))
-                    writer.write(i < KBART_FIELDS.size() - 1 ? '\t' : '\n')
+                selectiveUpdate = true
+                boolean more = true
+
+                while (more) {
+                  String[] row_data = csv.readNext()
+
+                  if (row_data) {
+                    def tipp_uuid = row_data[col_positions['gokb_tipp_uid']]
+
+                    if (!existingFileMap[tipp_uuid]) {
+                      existingFileMap[tipp_uuid] = []
+                    }
+
+                    existingFileMap[tipp_uuid].push(row_data)
+                  }
+                  else {
+                    more = false
+                  }
+                }
+
+                log.debug("createKbartExport :: Old map has ${existingFileMap.keySet().size()} entries!")
+              }
+            }
+
+            def tmpFile = new File("${grailsApplication.config.getProperty('gokb.baseTempDirectory')}${exportFileName}")
+
+            if (tmpFile.isFile()) {
+              tmpFile.delete()
+            }
+
+            tmpFile.withWriter { writer ->
+              // As per spec header at top of file / section
+              // II: Need to add in preceding_publication_title_id
+              KBART_FIELDS.eachWithIndex { field, i ->
+                writer.write(field)
+                writer.write(i < KBART_FIELDS.size() - 1 ? '\t' : '\n')
+              }
+
+              def session = sessionFactory.getCurrentSession()
+              def combo_tipps = RefdataCategory.lookup('Combo.Type', 'Package.Tipps')
+              def status_current = RefdataCategory.lookup('KBComponent.Status', 'Current')
+              def status_expected = RefdataCategory.lookup('KBComponent.Status', 'Expected')
+              def qry_string_full = '''select tipp.id from TitleInstancePackagePlatform as tipp,
+                                                Combo as c
+                                                where c.fromComponent.id = :p
+                                                and c.toComponent = tipp
+                                                and tipp.status in (:status)
+                                                and c.type = :ct
+                                                order by tipp.id'''
+              def qry_string_selective = '''select tipp.id from TitleInstancePackagePlatform as tipp,
+                                                Combo as c
+                                                where c.fromComponent.id = :p
+                                                and c.toComponent = tipp
+                                                and c.type = :ct
+                                                and tipp.lastUpdated > :ts
+                                                order by tipp.id'''
+
+
+              def query = session.createQuery(selectiveUpdate ? qry_string_selective : qry_string_full)
+              query.setReadOnly(true)
+              query.setParameter('p', pkg.getId(), StandardBasicTypes.LONG)
+              query.setParameter('ct', combo_tipps)
+
+              if (!selectiveUpdate) {
+                query.setParameterList('status', [status_current, status_expected])
+              }
+              else {
+                query.setParameter('ts', currentCacheDate)
+              }
+
+              ScrollableResults tippIDs = query.scroll(ScrollMode.FORWARD_ONLY)
+              int ctr = 0
+
+              while (tippIDs.next()) {
+                def tipp_id = tippIDs.get(0)
+                TitleInstancePackagePlatform tipp = TitleInstancePackagePlatform.get(tipp_id)
+
+                if (selectiveUpdate) {
+                  if (tipp.status != status_expected && tipp.status != status_current && existingFileMap[tipp.uuid]) {
+                    existingFileMap.remove(tipp.uuid)
+                  }
+                  else {
+                    existingFileMap[tipp.uuid] = []
+
+                    kbartRecordsFor(tipp, exportType).each { record ->
+                      def new_row_data = []
+
+                      KBART_FIELDS.eachWithIndex { fieldName, i ->
+                        new_row_data << sanitize(record[fieldName])
+                      }
+
+                      existingFileMap[tipp.uuid].push(new_row_data)
+                    }
+                  }
+                }
+                else {
+                  kbartRecordsFor(tipp, exportType).each { record ->
+                    KBART_FIELDS.eachWithIndex { fieldName, i ->
+                      writer.write(sanitize(record[fieldName]))
+                      writer.write(i < KBART_FIELDS.size() - 1 ? '\t' : '\n')
+                    }
+                  }
+                }
+
+                if (ctr % 50 == 0) {
+                  session.flush()
+                  session.clear()
+                }
+
+                if (Thread.currentThread().isInterrupted()) {
+                  log.info("KBART caching was cancelled!")
+                  cancelled = true
+                  break
+                }
+                ctr++
+              }
+
+              if (selectiveUpdate && !cancelled) {
+                Map orderedMap = existingFileMap.sort { it.value[0][0].toLowerCase() }
+
+                orderedMap.each { uuid, rows ->
+                  rows.each { row_items ->
+                    writer.write(row_items.join('\t'))
+                    writer.write('\n')
                   }
                 }
               }
 
-              if (ctr % 50 == 0) {
-                session.flush()
-                session.clear()
-              }
+              log.debug("Rewritten lines for ${ctr} TIPPs")
 
-              if (Thread.currentThread().isInterrupted()) {
-                log.info("KBART caching was cancelled!")
-                cancelled = true
-                break
-              }
-              ctr++
+              tippIDs.close()
+              writer.close()
             }
 
-            if (selectiveUpdate && !cancelled) {
-              Map orderedMap = existingFileMap.sort { it.value[0][0].toLowerCase() }
-
-              orderedMap.each { uuid, rows ->
-                rows.each { row_items ->
-                  writer.write(row_items.join('\t'))
-                  writer.write('\n')
-                }
+            if (!cancelled) {
+              if (latestFileName) {
+                log.debug("Deleting old file ${latestFileName} for ${pkg}")
+                new File(path + latestFileName).delete()
               }
+
+              FileUtils.moveFile(tmpFile, out)
             }
-
-            log.debug("Rewritten lines for ${ctr} TIPPs")
-
-            tippIDs.close()
-            writer.close()
-          }
-
-          if (!cancelled) {
-            new File(path).list().each { fileName ->
-              if (fileName.startsWith(oldExportFileName.substring(0, oldExportFileName.length() - 21)) || fileName.startsWith(exportFileName.substring(0, exportFileName.length() - 21))) {
-                log.debug("Deleting old file ${fileName} for ${exportFileName}")
-                new File(path + fileName).delete()
-              }
+            else {
+              result = 'CANCELLED'
             }
-
-            log.debug("Moving temp file ${tmpFile} to ${out}")
-            FileUtils.moveFile(tmpFile, out)
-          }
-          else {
-            result = 'CANCELLED'
           }
         }
         catch (Exception e) {
@@ -325,30 +328,29 @@ class PackageCSVExportService {
 
     if (activeJobs?.data?.size() == 0) {
       try {
-        if (pkg) {
-          boolean selectiveUpdate = false
-          boolean cancelled = false
-          def latestFileName = getLatestFile(pkg, path, oldExportFileName, ExportType.TSV)
-          Date parsed_date
-          def existingFileMap = [:]
-          File out = new File("${path}${exportFileName}")
-          File old_out = new File("${path}${oldExportFileName}")
+        boolean selectiveUpdate = false
+        boolean cancelled = false
+        String latestFileName = getLatestFile(pkg, path, oldExportFileName, ExportType.TSV)
+        def existingFileMap = [:]
+        File out = new File("${path}${exportFileName}")
+        File old_out = new File("${path}${oldExportFileName}")
+        Date currentCacheDate = latestFileName ? dateFormatService.parseTimestamp(latestFileName.substring(latestFileName.length() - 23, latestFileName.length() - 4)) : null
 
-          if (!force_rewrite && out.isFile()) {
-            // log.debug("createTsvExport :: Current file for new uuid pattern ${exportFileName} already exists!")
-            return result
-          }
+        if (!force_rewrite && out.isFile()) {
+          // log.debug("createTsvExport :: Current file for new uuid pattern ${exportFileName} already exists!")
+          return result
+        }
 
-          if (!force_rewrite && old_out.isFile()) {
-            // log.debug("createTsvExport :: Current file for old name pattern ${oldExportFileName} already exists!")
-            return result
-          }
+        if (!force_rewrite && old_out.isFile()) {
+          // log.debug("createTsvExport :: Current file for old name pattern ${oldExportFileName} already exists!")
+          return result
+        }
 
+        if (!force_rewrite || (Duration.between(pkg.lastUpdated.toInstant(), Instant.now()).getSeconds() > 60 && (!latestFileName || pkg.lastUpdated > currentCacheDate))) {
           log.info("createTsvExport :: Caching start for Package ${pkg}, rewrite: ${force_rewrite}")
 
           if (latestFileName && !force_rewrite) {
             selectiveUpdate = true
-            parsed_date = dateFormatService.parseTimestamp(latestFileName.substring(latestFileName.length() - 23, latestFileName.length() - 4))
             CSVReader csv = initReader(path + latestFileName)
 
             def fileNameHeader = csv.readNext()
@@ -458,7 +460,7 @@ class PackageCSVExportService {
               query.setParameter('sd', status_deleted)
             }
             else {
-              query.setParameter('ts', parsed_date)
+              query.setParameter('ts', currentCacheDate)
             }
 
             ScrollableResults tipps = query.scroll(ScrollMode.FORWARD_ONLY)
@@ -517,11 +519,9 @@ class PackageCSVExportService {
           }
 
           if (!cancelled) {
-            new File(path).list().each { fileName ->
-              if (fileName.startsWith(exportFileName.substring(0, exportFileName.length() - 21))) {
-                log.debug("Deleting old file ${fileName} for ${exportFileName}")
-                new File(path + fileName).delete()
-              }
+            if (latestFileName) {
+              log.debug("Deleting old file ${latestFileName} for ${pkg}")
+              new File(path + latestFileName).delete()
             }
 
             FileUtils.moveFile(tmpFile, out)
@@ -545,12 +545,12 @@ class PackageCSVExportService {
     result
   }
 
-  private def getLatestFile(pkg, path, filename, type) {
-    def result = null
+  private String getLatestFile(pkg, path, old_pattern, type) {
+    //log.debug("getLatestFile :: Old pattern to match is '${old_pattern.substring(0, old_pattern.length() - 21)}'")
+    String result
+    String type_string
 
-    String type_string = null
-
-    if (type == ExportType.KBART_TITLE) {
+    if (type == ExportType.KBART_TIPP) {
       type_string = 'Local'
     }
     else if (type == ExportType.KBART_TITLE) {
@@ -561,7 +561,7 @@ class PackageCSVExportService {
     }
 
     new File(path).list().each { someFileName ->
-      if (someFileName.startsWith("${pkg.uuid}_${type_string}") || someFileName.startsWith(filename.substring(0, filename.length() - 21))) {
+      if (someFileName.startsWith("${pkg.uuid}_${type_string}") || someFileName.startsWith(old_pattern.substring(0, old_pattern.length() - 21))) {
         result = someFileName
       }
     }
@@ -571,42 +571,26 @@ class PackageCSVExportService {
 
   public void sendFile(Package pkg, ExportType type, def response) {
     def path = exportFilePath()
-    String fileName = generateExportFileName(pkg, type, false)
+    String oldCachedName = generateExportFileName(pkg, type, false)
+    String exportName = generateExportFileName(pkg, type, false, false, true, true)
 
     try {
-      File file = new File(path + fileName)
+      def latest = getLatestFile(pkg, path, oldCachedName, type)
+      File file
 
-      if (!file.isFile()) {
-        def latest = getLatestFile(pkg, path, fileName, type)
-
-        if (latest) {
-          file = new File(path + latest)
-        }
-        else if (grailsApplication.config.getProperty('gokb.packageOaiCaching.enabled', Boolean, false) == false) {
-          if (type in [ExportType.KBART_TIPP, ExportType.KBART_TITLE])
-            createKbartExport(pkg, type)
-          else
-            createTsvExport(pkg)
-
-          file = new File(path + fileName)
-        }
-        else {
-          def caching_result = packageCachingService.cacheSinglePackage(pkg.id, true)
-
-          if (caching_result == 'OK') {
-            file = new File(path + fileName)
-          }
-          else {
-            response.status = 404
-          }
-        }
+      if (latest) {
+        file = new File(path + latest)
+      }
+      else {
+        log.debug("No file found for ${oldCachedName}")
+        response.status = 404
       }
 
-      if (file.isFile()) {
+      if (file?.isFile()) {
         InputStream inFile = new FileInputStream(file)
 
         response.setContentType('text/tab-separated-values')
-        response.setHeader("Content-Disposition", "attachment; filename=\"${fileName.substring(0, fileName.length() - 13)}.${fileName.substring(fileName.length() - 3, fileName.length())}\"")
+        response.setHeader("Content-Disposition", "attachment; filename=\"${exportName}\"")
         response.setHeader("Content-Encoding", "UTF-8")
         response.setContentLength(file.bytes.length)
 
@@ -645,40 +629,23 @@ class PackageCSVExportService {
     tempDir.mkdir()
     // step one: collect data files in temp directory
     packs.each { pkg ->
-      String fileName = generateExportFileName(pkg, type, false)
+      String oldCachedName = generateExportFileName(pkg, type, false)
+      String exportName = generateExportFileName(pkg, type, false, false, true, true)
       boolean fileErrors = false
 
       try {
-        File src = new File(path + fileName)
+        def latest = getLatestFile(pkg, path, oldCachedName, type)
+        File src
 
-        if (!src.isFile()) {
-          def latest = getLatestFile(pkg, path, fileName, type)
-
-          if (latest) {
-            src = new File(path + latest)
-          }
-          else if (grailsApplication.config.getProperty('gokb.packageOaiCaching.enabled', Boolean, false) == false) {
-            if (type in [ExportType.KBART_TIPP, ExportType.KBART_TITLE])
-              createKbartExport(pkg, type)
-            else
-              createTsvExport(pkg)
-            src = new File(path + fileName)
-          }
-          else {
-            def caching_result = packageCachingService.cacheSinglePackage(pkg.id, true)
-
-            if (caching_result == 'OK') {
-              src = new File(exportFilePath() + fileName)
-            }
-            else {
-              hasErrors = true
-              fileErrors = true
-            }
-          }
+        if (latest) {
+          src = new File(path + latest)
+        }
+        else {
+          fileErrors = true
         }
 
         if (!fileErrors) {
-          File dest = new File("${path}${pathPrefix}/${fileName.substring(0, fileName.length() - 13)}.txt")
+          File dest = new File("${path}${pathPrefix}/${exportName}")
           FileCopyUtils.copy(src, dest)
         }
       } catch (IOException iox) {
@@ -726,8 +693,7 @@ class PackageCSVExportService {
     url.replace("://", "_").replace(".", "_").replace("/", "_")
   }
 
-  private String generateExportFileName(Package pkg, ExportType type, boolean uuid_name = true) {
-    String lastUpdate = dateFormatService.formatTimestamp(pkg.lastUpdated)
+  private String generateExportFileName(Package pkg, ExportType type, boolean uuid_name = true, boolean full_timestamp = true, boolean date_stamp = false, boolean file_type = true) {
     StringBuilder name = new StringBuilder()
 
     if (uuid_name) {
@@ -755,7 +721,20 @@ class PackageCSVExportService {
       }
     }
 
-    name.append('_').append(lastUpdate).append('.txt')
+    if (full_timestamp || date_stamp) {
+      name.append('_')
+
+      if (full_timestamp) {
+        name.append(dateFormatService.formatTimestamp(pkg.lastUpdated))
+      }
+      else {
+        name.append(dateFormatService.formatDate(pkg.lastUpdated))
+      }
+    }
+
+    if (file_type) {
+      name.append('.txt')
+    }
 
     return name.toString()
   }

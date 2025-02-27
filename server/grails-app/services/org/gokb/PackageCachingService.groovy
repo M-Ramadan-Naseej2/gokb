@@ -364,7 +364,7 @@ class PackageCachingService {
       }
 
       if (result != 'CANCELLED' && (force || result != 'SKIPPED_CURRENTLY_CHANGING')) {
-        result = packageCSVExportService.updateExportFiles(item)
+        result = packageCSVExportService.updateExportFiles(item, force)
       }
     }
     else if (!item) {
