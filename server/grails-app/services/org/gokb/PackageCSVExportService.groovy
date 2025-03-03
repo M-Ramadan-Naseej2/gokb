@@ -699,7 +699,7 @@ class PackageCSVExportService {
     if (uuid_name) {
       name.append(pkg.uuid)
 
-      if (type == ExportType.KBART_TITLE) {
+      if (type == ExportType.KBART_TIPP) {
         name.append('_Local')
       }
       else if (type == ExportType.KBART_TITLE) {
