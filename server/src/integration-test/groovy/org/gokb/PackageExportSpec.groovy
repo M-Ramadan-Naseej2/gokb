@@ -76,14 +76,15 @@ class PackageExportSpec extends Specification {
     def urlPath = getUrlPath()
 
     when:
+    sleep(2000)
     HttpRequest request = HttpRequest.GET("${urlPath}/packages/kbart/${pack1.uuid}")
     HttpResponse resp = http.exchange(request, String)
 
     then:
     resp.status == HttpStatus.OK
-    resp.body().contains("PackageExportJournal1")
-    resp.body().contains("PackageExportJournal2")
-    resp.header("Content-Disposition") == "attachment; filename=\"UnknownProvider_${pack1.global.value}_${pack1.name}_${new SimpleDateFormat("yyyy-MM-dd").format(new Date())}.txt\""
+    resp.body()?.contains("PackageExportJournal1")
+    resp.body()?.contains("PackageExportJournal2")
+    resp.header("Content-Disposition") == "attachment; filename=\"UnknownProvider_Global_Packageexportpackage1_${new SimpleDateFormat("yyyy-MM-dd").format(new Date())}.txt\""
   }
 
   void "test multiple results /packages/packageTSVExport/"() {

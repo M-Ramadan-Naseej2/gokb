@@ -328,23 +328,29 @@ class PackagesController {
       packageCSVExportService.sendZip(packs, type, response)
     }
     else {
-      def ids = params.list('pkg')
+      def ids = params.list('pkg') ?: [params.id]
       def type = params.exportType == 'title' ? PackageCSVExportService.ExportType.KBART_TITLE : PackageCSVExportService.ExportType.KBART_TIPP
 
-      if (!ids || ids.size() <= 1) {
-        def pkg = Package.findByUuid(params.id) ?: (genericOIDService.oidToId(params.id) ? Package.get(genericOIDService.oidToId(params.id)) : null)
+      if (!ids) {
+        response.sattus = 400
+      }
+      else if (ids.size() == 1) {
+        def pkg = Package.findByUuid(ids[0]) ?: (genericOIDService.oidToId(ids[0]) ? Package.get(genericOIDService.oidToId(ids[0])) : null)
 
-        if (pkg)
+        if (pkg) {
           packageCSVExportService.sendFile(pkg, type, response)
-        else
-          log.error("Cant find package with ID ${params.id}")
+        }
+        else {
+          log.error("Cant find package with ID ${ids[0]}")
           response.status = 404
+        }
       }
       else {
         def packs = []
 
         ids.each { id ->
           def pkg = Package.findByUuid(id) ?: (genericOIDService.oidToId(id) ? Package.get(genericOIDService.oidToId(id)) : null)
+
           if (pkg)
             packs << pkg
         }
@@ -369,22 +375,21 @@ class PackagesController {
       packageCSVExportService.sendZip(packs, PackageCSVExportService.ExportType.TSV, response)
     }
     else {
-      def ids = params.list('pkg')
+      def ids = params.list('pkg') ?: [params.id]
 
-      if (ids?.size() == 0) {
-        if (params.id == "all") {
-          Package.all.each { pack ->
-            packageCSVExportService.createTsvExport(pack)
-          }
-          return response
-        }
-        def pkg = Package.findByUuid(params.id) ?: (genericOIDService.oidToId(params.id) ? Package.get(genericOIDService.oidToId(params.id)) : null)
+      if (!ids) {
+        response.status = 400
+      }
+      else if (ids.size() == 1) {
+        def pkg = Package.findByUuid(ids[0]) ?: (genericOIDService.oidToId(ids[0]) ? Package.get(genericOIDService.oidToId(ids[0])) : null)
 
-        if (pkg)
+        if (pkg) {
           packageCSVExportService.sendFile(pkg, PackageCSVExportService.ExportType.TSV, response)
-        else
-          log.error("Cant find package with ID ${params.id}")
+        }
+        else {
+          log.error("Cant find package with ID ${ids[0]}")
           response.status = 404
+        }
       } else {
         def packs = []
 
