@@ -670,7 +670,7 @@ class TippService {
       log.info("${result.total} detached TIPPs to check")
 
       for (Long tippID : tippIDs) {
-        log.debug("Begin ti match for tipp ${tippId}")
+        log.debug("Begin ti match for tipp ${tippID}")
         count++
         TitleInstancePackagePlatform tipp = TitleInstancePackagePlatform.get(tippID)
 
@@ -696,7 +696,7 @@ class TippService {
             reviewAmbiguousMatches(tipp, rrList)
           }
         }
-        log.debug("End ti match for tipp ${tippId}")
+        log.debug("End ti match for tipp ${tippID}")
 
         if (count % 50 == 0) {
           session.flush()
@@ -720,7 +720,7 @@ class TippService {
 
     for (rr_atm in reviews) {
       if (!tipp.title) {
-        def total_matches = rr_atm.additionalInfo.otherComponents
+        def total_matches = rr_atm.additionalInfo instanceof Map ? (rr_atm.additionalInfo?.otherComponents ?: []) : []
         def current_matches = []
 
         for (ttl in total_matches) {
@@ -902,13 +902,39 @@ class TippService {
               (ti.publishedTo && currentCov.endDate && currentCov.endDate > ti.publishedTo)
           )) {
             result.reviewCreated = true
+
+            def coverage_dates = [
+              startDate: currentCov.startDate,
+              endDate: currentCov.endDate
+            ]
+
+            def ti_pub_dates = [
+              publishedFrom: ti.publishedFrom,
+              publishedTo: ti.publishedTo
+            ]
+
+            def additionalInfo = [otherComponents: [
+              oid: "${ti.class.name}:${ti.id}",
+              name: ti.name,
+              id: ti.id,
+              uuid: ti.uuid,
+              conflicts: [
+                [
+                  message: "TIPP coverage has conflicts with title publishing dates!",
+                  field  : "coverageStatements",
+                  value  : "${coverage_dates}",
+                  matched: "${ti_pub_dates}"
+                ]
+              ]
+            ]]
+
             reviewRequestService.raise(
                 tipp,
                 "TIPP coverage conflicts title publishing data",
                 "TIPP ${tipp.name} was linked, check coverage",
                 null,
                 null,
-                [otherComponents: ti] as JSON,
+                (additionalInfo as JSON).toString(),
                 RefdataCategory.lookup("ReviewRequest.StdDesc", "Coverage Mismatch"),
                 componentLookupService.findCuratoryGroupOfInterest(tipp, null, group)
             )
@@ -1222,7 +1248,13 @@ class TippService {
       if (num_existing == 0) {
         def additionalInfo = [otherComponents: []]
         found.matches.each { comp ->
-          additionalInfo.otherComponents << [oid: "${comp.object.class.name}:${comp.object.id}", name: comp.object.name, id: comp.object.id, uuid: comp.object.uuid, conflicts: comp.conflicts]
+          additionalInfo.otherComponents << [
+            oid: "${comp.object.class.name}:${comp.object.id}",
+            name: comp.object.name,
+            id: comp.object.id,
+            uuid: comp.object.uuid,
+            conflicts: comp.conflicts
+          ]
         }
         reviewRequestService.raise(
             tipp,
