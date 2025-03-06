@@ -52,6 +52,7 @@ class ESSearchService{
           "global",
           "editStatus",
           "contentType",
+          "publicationType",
           "status"
       ],
       namespace: [
