@@ -80,13 +80,14 @@ class PackageCachingService {
     String result = 'OK'
     File tempDir = new File(grailsApplication.config.getProperty('gokb.baseTempDirectory'))
     File dir = new File(grailsApplication.config.getProperty('gokb.packageXmlCacheDirectory'))
+    RefdataValue status_checked = RefdataCategory.lookup('Package.ListStatus', 'Checked')
     Package item = Package.get(id)
     def session = sessionFactory.currentSession
-    def activeComponentJobs = concurrencyManagerService.getComponentJobs(id)
+    boolean activeComponentJobs = concurrencyManagerService.getComponentJobs(id)?.data?.size() > 0
     def activeScheduledJobs = jobManagerService.runningJobs?.findAll { it.jobDetail.key.name == 'org.gokb.AutoCachePackagesJob'} ?: null
     boolean cancelled = false
 
-    if (item && (!force || !activeScheduledJobs) && activeComponentJobs?.data?.size() == 0) {
+    if (item && (!force || !activeScheduledJobs) && !activeComponentJobs && (force || item.listStatus == status_checked)) {
       try {
         if (!dir.exists()) {
           dir.mkdirs()
@@ -374,8 +375,11 @@ class PackageCachingService {
     else if (activeScheduledJobs) {
       result = 'SKIPPED_ACTIVE_JOB'
     }
-     else {
+    else if (activeComponentJobs) {
       result = 'SKIPPED_CURRENTLY_CHANGING'
+    }
+    else {
+      result = 'SKIPPED_LISTSTATUS'
     }
 
     result

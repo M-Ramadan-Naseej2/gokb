@@ -73,9 +73,9 @@ class PackageCSVExportService {
   public String updateExportFiles(Package pkg, boolean force = false) {
     //log.info("Caching KBART & CSV for ${pkg}..")
     String result = 'OK'
-    def activeJobs = concurrencyManagerService.getComponentJobs(pkg.id)
+    boolean activeJobs = concurrencyManagerService.getComponentJobs(pkg.id)?.data?.size() > 0
 
-    if (activeJobs?.data?.size() == 0) {
+    if (!activeJobs) {
       result = createKbartExport(pkg, ExportType.KBART_TIPP, force)
 
       if (result == 'OK') {
@@ -104,9 +104,9 @@ class PackageCSVExportService {
       String oldExportFileName = generateExportFileName(pkg, exportType, false)
       String exportFileName = generateExportFileName(pkg, exportType)
       String path = exportFilePath()
-      def activeJobs = concurrencyManagerService.getComponentJobs(pkg.id)
+      boolean activeJobs = concurrencyManagerService.getComponentJobs(pkg.id)?.data?.size() > 0
 
-      if (activeJobs?.data?.size() == 0) {
+      if (!activeJobs) {
         try {
           boolean selectiveUpdate = false
           boolean cancelled = false
@@ -319,14 +319,14 @@ class PackageCSVExportService {
 
   private String createTsvExport(Package pkg, boolean force_rewrite = false) {
     String result = 'OK'
-    def export_date = dateFormatService.formatDate(new Date())
+    String export_date = dateFormatService.formatDate(new Date())
     String oldExportFileName = generateExportFileName(pkg, ExportType.TSV, false)
     String exportFileName = generateExportFileName(pkg, ExportType.TSV)
     String path = exportFilePath()
     String pkgName = pkg.name
-    def activeJobs = concurrencyManagerService.getComponentJobs(pkg.id)
+    boolean activeJobs = concurrencyManagerService.getComponentJobs(pkg.id)?.data?.size() > 0
 
-    if (activeJobs?.data?.size() == 0) {
+    if (!activeJobs) {
       try {
         boolean selectiveUpdate = false
         boolean cancelled = false

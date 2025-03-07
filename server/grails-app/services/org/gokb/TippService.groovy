@@ -26,6 +26,7 @@ class TippService {
   def validationService
   def restMappingService
   def FTUpdateService
+  def dateFormatService
 
   def validateDTO(tipp_dto) {
     def result = [valid: true]
@@ -893,8 +894,8 @@ class TippService {
         }
         else if (found.matches.size() == 1) {
           // exactly one match
+          log.debug("Matched title ${found.matches[0]} for ${tipp}!")
           ti = found.matches[0].object
-          log.debug("Matched title ${ti} for ${tipp}!")
           TIPPCoverageStatement currentCov = latest(tipp.coverageStatements)
 
           if (currentCov && (
@@ -903,41 +904,39 @@ class TippService {
           )) {
             result.reviewCreated = true
 
-            def coverage_dates = [
-              startDate: currentCov.startDate,
-              endDate: currentCov.endDate
-            ]
+            def coverage_dates = "${dateFormatService.formatDate(currentCov.startDate)} - ${dateFormatService.formatDate(currentCov.endDate)}"
+            def ti_pub_dates = "${dateFormatService.formatDate(ti.publishedFrom)} - ${dateFormatService.formatDate(ti.publishedTo)}"
 
-            def ti_pub_dates = [
-              publishedFrom: ti.publishedFrom,
-              publishedTo: ti.publishedTo
-            ]
+            RefdataValue type_cmc = RefdataCategory.lookup("ReviewRequest.StdDesc", "Coverage Matching Conflict")
+            RefdataValue status_open = RefdataCategory.lookup("ReviewRequest.Status", "Open")
 
-            def additionalInfo = [otherComponents: [
-              oid: "${ti.class.name}:${ti.id}",
-              name: ti.name,
-              id: ti.id,
-              uuid: ti.uuid,
-              conflicts: [
+            def additionalInfo = [
+              vars: [coverage_dates, ti_pub_dates],
+              otherComponents: [
                 [
-                  message: "TIPP coverage has conflicts with title publishing dates!",
-                  field  : "coverageStatements",
-                  value  : "${coverage_dates}",
-                  matched: "${ti_pub_dates}"
+                  oid: "${ti.class.name}:${ti.id}",
+                  name: ti.name,
+                  id: ti.id,
+                  uuid: ti.uuid,
+                  conflicts: found.matches[0].conflicts
                 ]
               ]
-            ]]
+            ]
 
-            reviewRequestService.raise(
-                tipp,
-                "TIPP coverage conflicts title publishing data",
-                "TIPP ${tipp.name} was linked, check coverage",
-                null,
-                null,
-                (additionalInfo as JSON).toString(),
-                RefdataCategory.lookup("ReviewRequest.StdDesc", "Coverage Mismatch"),
-                componentLookupService.findCuratoryGroupOfInterest(tipp, null, group)
-            )
+            def existing_cmc = ReviewRequest.executeQuery("select count(*) from ReviewRequest where componentToReview = :tid and stdDesc = :type and status = :so", [tid: tipp, type: type_cmc, so: status_open])
+
+            if (!existing_cmc) {
+              reviewRequestService.raise(
+                  tipp,
+                  "TIPP coverage is in conflict with linked title publishing data.",
+                  "Title publishing dates and correct them if necessary.",
+                  null,
+                  null,
+                  (additionalInfo as JSON).toString(),
+                  type_cmc,
+                  componentLookupService.findCuratoryGroupOfInterest(tipp, null, group)
+              )
+            }
           }
         }
         else if (found.matches.size() > 1 && tipp.coverageStatements?.size() > 0) {
