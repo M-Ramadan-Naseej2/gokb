@@ -90,6 +90,8 @@ class WekbIngestionService {
         }
 
         def targetNamespaceTitleId =  pkg_source.getTargetNamespace()?.getValue()
+        def targetNamespaceTitleIdSerial =  pkg_source.getTitleIdSerial()?.getValue() || null
+        def targetNamespaceTitleIdMonograph =  pkg_source.getTitleIdMonograph()?.getValue() || null
 
         int tippNum = 0
         def tippBatches = []
