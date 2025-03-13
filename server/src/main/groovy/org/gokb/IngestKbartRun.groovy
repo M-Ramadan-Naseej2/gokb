@@ -393,7 +393,8 @@ class IngestKbartRun {
             groupId     : (job.groupId),
             startTime   : (job.startTime),
             endTime     : (job.endTime),
-            linkedItemId: (job.linkedItem?.id)
+            linkedItemId: (job.linkedItem?.id),
+            importFile  : (datafile)
         ]
 
         def result_object = JobResult.findByUuid(job.uuid)
