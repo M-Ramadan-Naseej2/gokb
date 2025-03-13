@@ -843,27 +843,25 @@ class TippService {
 
     if (tipp) {
       CuratoryGroup group = groupId ? CuratoryGroup.findById(groupId) : null
-      def found
       final IdentifierNamespace ZDB_NS = IdentifierNamespace.findByValue('zdb')
-      def pkg = Package.executeQuery("from Package as pkg where exists (select 1 from Combo where fromComponent = pkg and toComponent = :tipp)", [tipp: tipp])[0]
+      Package pkg = Package.deproxy(tipp.pkg)
 
       if (pkg && !group) {
         group = CuratoryGroup.deproxy(pkg.curatoryGroups[0])
       }
 
       // remap Identifiers
-      def tipp_ids = Identifier.executeQuery("from Identifier as i where exists (select 1 from Combo where fromComponent = :tipp and toComponent = i)", [tipp: tipp])
-      def my_ids = tipp_ids.collect { [value: it.value, type: it.namespace.value] }
+      def tipp_ids = tipp.activeIdInfo.collect { [type: it.namespace, value: it.value] }
       def pubType = tipp.publicationType?.value ?: null
 
-      log.debug("TIPP Ids: ${my_ids} (by query: tipp_ids.size())")
+      log.debug("TIPP Ids: ${tipp_ids} (by query: tipp_ids.size())")
 
-      if (!pubType && my_ids.find { it.type == 'issn' || it.type == 'eissn' }) {
+      if (!pubType && tipp_ids.find { it.type == 'issn' || it.type == 'eissn' }) {
         pubType = 'Serial'
         tipp.publicationType = RefdataCategory.lookup(TitleInstancePackagePlatform.RD_PUBLICATION_TYPE, pubType)
         tipp.save(flush: true)
       }
-      else if (!pubType && my_ids.find { it.type == 'isbn' || it.type == 'isbn' }) {
+      else if (!pubType && tipp_ids.find { it.type == 'isbn' || it.type == 'pisbn' }) {
         pubType = 'Monograph'
         tipp.publicationType = RefdataCategory.lookup(TitleInstancePackagePlatform.RD_PUBLICATION_TYPE, pubType)
         tipp.save(flush: true)
@@ -874,10 +872,10 @@ class TippService {
       if (title_class_name) {
         TitleInstance ti = null
 
-        found = titleLookupService.find(
+        def found = titleLookupService.find(
             tipp.name,
             tipp.getPublisherName(),
-            my_ids,
+            tipp_ids,
             title_class_name
         )
 
@@ -961,7 +959,7 @@ class TippService {
           new Combo(fromComponent: ti, toComponent: tipp, type: RefdataCategory.lookup('Combo.Type', 'TitleInstance.Tipps')).save(flush: true)
 
           if (result.status == 'matched') {
-            titleAugmentService.addIdentifiers(tipp_ids, ti)
+            componentUpdateService.updateIdentifiers(ti, tipp_ids)
             titleAugmentService.addPublisher(tipp.publisherName, ti)
           }
 
@@ -975,18 +973,17 @@ class TippService {
         else {
           log.debug("Unable to match title!")
 
-          Package p = Package.get(pkg.id)
-
-          if (p.listStatus == RefdataCategory.lookup('Package.ListStatus', 'Checked')) {
-            p.listStatus = RefdataCategory.lookup('Package.ListStatus', 'In Progress')
-            p.save(flush: true)
-          }
-
           result.status = 'unmatched'
         }
 
-        if (found.matches?.size() > 0 || found.conflicts?.size() > 0)
+        if (found.matches?.size() > 0 || found.conflicts?.size() > 0) {
           result.reviewCreated = handleFindConflicts(tipp, found, group)
+
+          if (result.reviewCreated && pkg.listStatus == RefdataCategory.lookup('Package.ListStatus', 'Checked')) {
+            pkg.listStatus = RefdataCategory.lookup('Package.ListStatus', 'In Progress')
+            pkg.save(flush: true)
+          }
+        }
 
         result
       }
@@ -1003,8 +1000,15 @@ class TippService {
     }
   }
 
-  private def createTitleFromTippData(tipp, tipp_ids) {
+  public boolean revertCheckedListStatusFor(pkgId) {
+    boolean changed = false
 
+
+
+    changed
+  }
+
+  private def createTitleFromTippData(tipp, tipp_ids) {
     def title_class_name = TitleInstance.determineTitleClass(tipp.publicationType?.value ?: 'Serial')
     def ti = Class.forName(title_class_name).newInstance()
     def title_changed = false
@@ -1014,7 +1018,7 @@ class TippService {
     ti.save(flush: true)
     titleAugmentService.addPublisher(tipp.publisherName, ti)
     log.debug("Transfering new ti ids: ${tipp_ids}")
-    titleAugmentService.addIdentifiers(tipp_ids, ti)
+    componentUpdateService.updateIdentifiers(ti, tipp_ids)
 
     title_changed |= componentUpdateService.setAllRefdata([
         'medium', 'language'
@@ -1037,6 +1041,7 @@ class TippService {
 
       title_changed |= titleAugmentService.editMonographFields(ti, mono_string_info)
     }
+
     ti.save(flush: true)
     ti
   }
