@@ -166,6 +166,7 @@ class TitleController {
     def user = User.get(springSecurityService.principal.id)
     def ids = reqBody.ids ?: reqBody.identifiers
     def base = grailsApplication.config.getProperty('grails.serverURL', String, "") + "/rest"
+    boolean allow_id_conflicts = user.isAdmin() || reqBody?._checked == true
 
     def publisher_name = null
 
@@ -190,7 +191,7 @@ class TitleController {
           type.name
         )
 
-        if (title_lookup.to_create || reqBody._checked == true) {
+        if (title_lookup.to_create || allow_id_conflicts) {
           obj = type.newInstance()
           obj.name = reqBody.name.trim()
 
