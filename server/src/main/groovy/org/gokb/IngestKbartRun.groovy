@@ -393,7 +393,8 @@ class IngestKbartRun {
             groupId     : (job.groupId),
             startTime   : (job.startTime),
             endTime     : (job.endTime),
-            linkedItemId: (job.linkedItem?.id)
+            linkedItemId: (job.linkedItem?.id),
+            importFile  : (datafile)
         ]
 
         def result_object = JobResult.findByUuid(job.uuid)
@@ -745,7 +746,6 @@ class IngestKbartRun {
 
         if (match_result.failed_matches.size() > 0) {
           result.status = 'partial'
-          result.reviewCreated = true
 
           if (!dryRun) {
             def additionalInfo = [otherComponents: []]
@@ -764,6 +764,8 @@ class IngestKbartRun {
                 log.debug("Ignoring EZB-ID match ..")
               }
               else {
+                log.debug("Creating conflict review for conflict namespaces: ${matched_ns}")
+
                 needs_review = true
                 additionalInfo.otherComponents << [
                   oid: 'org.gokb.cred.TitleInstancePackagePlatform:' + ct.item.id,
@@ -777,6 +779,7 @@ class IngestKbartRun {
 
             // RR für Multimatch generieren
             if (needs_review) {
+              result.reviewCreated = true
               reviewRequestService.raise(
                   tipp,
                   "A KBART record has been matched on an existing package title by some identifiers, but not by other important identifiers.",
@@ -788,6 +791,9 @@ class IngestKbartRun {
                   componentLookupService.findCuratoryGroupOfInterest(tipp, user, activeGroup)
               )
             }
+          }
+          else {
+            result.reviewCreated = true
           }
         }
       }

@@ -56,6 +56,23 @@ class Source extends KBComponent {
 
   public static final String restPath = "/sources"
 
+  static jsonMapping = [
+    'ignore'       : [
+      'ruleset',
+      'defaultSupplyMethod',
+      'defaultDataFormat',
+      'ezbMatch'
+    ],
+    'es'           : [
+    ],
+    'defaultLinks' : [
+      'curatoryGroups'
+    ],
+    'defaultEmbeds': [
+      'curatoryGroups'
+    ]
+  ]
+
   static def refdataFind(params) {
     def result = [];
     def status_deleted = RefdataCategory.lookupOrCreate(KBComponent.RD_STATUS, KBComponent.STATUS_DELETED)
