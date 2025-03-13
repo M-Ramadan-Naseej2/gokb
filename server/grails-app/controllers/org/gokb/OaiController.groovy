@@ -284,7 +284,7 @@ class OaiController {
 
     // Get the information needed to describe this entry point.
     def first_timestamp = KBComponent.executeQuery("select ${result.oaiConfig.lastModified} from ${result.className} as o ORDER BY ${result.oaiConfig.lastModified} ASC".toString(), [], [max:1, readOnly:true])[0];
-    def last_timestamp = KBComponent.executeQuery("select ${result.oaiConfig.lastModified} from ${result.className} as o ORDER BY ${result.oaiConfig.lastModified} DESC".toString(), [], [max:1, readOnly:true])[0];
+    def last_timestamp = KBComponent.executeQuery("select ${result.oaiConfig.lastModified} from ${result.className} as o where ${result.oaiConfig.lastModified} IS NOT NULL ORDER BY ${result.oaiConfig.lastModified} DESC".toString(), [], [max:1, readOnly:true])[0];
 
     def writer = new StringWriter()
     def xml = new MarkupBuilder(writer)
