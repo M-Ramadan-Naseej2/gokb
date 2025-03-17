@@ -752,6 +752,7 @@ class IngestKbartRun {
             boolean needs_review = false
 
             match_result.failed_matches.each { ct ->
+              boolean isEzbImportId = false
               def matched_ns = []
 
               ct.matchResult.each { mr ->
@@ -760,12 +761,14 @@ class IngestKbartRun {
                 }
               }
 
-              if (matched_ns.size() == 1 && matched_ns[0] == 'ezb') {
+              if (identifiers.find { it -> (it.type == 'ezb') }) {
+                isEzbImportId = true
+              }
+
+              if (matched_ns.size() == 1 && matched_ns[0] == 'title_id' && isEzbImportId) {
                 log.debug("Ignoring EZB-ID match ..")
               }
               else {
-                log.debug("Creating conflict review for conflict namespaces: ${matched_ns}")
-
                 needs_review = true
                 additionalInfo.otherComponents << [
                   oid: 'org.gokb.cred.TitleInstancePackagePlatform:' + ct.item.id,
