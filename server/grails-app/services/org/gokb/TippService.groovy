@@ -958,7 +958,13 @@ class TippService {
           new Combo(fromComponent: ti, toComponent: tipp, type: RefdataCategory.lookup('Combo.Type', 'TitleInstance.Tipps')).save(flush: true)
 
           if (result.status == 'matched') {
-            componentUpdateService.updateIdentifiers(ti, tipp_ids)
+            boolean ti_changed = componentUpdateService.updateIdentifiers(ti, tipp_ids)
+
+            if (ti_changed) {
+              ti.lastSeen = new Date().getTime()
+              ti.save(flush: true)
+            }
+
             titleAugmentService.addPublisher(tipp.publisherName, ti)
           }
 
@@ -1454,7 +1460,7 @@ class TippService {
       def tipp_id_match_results = []
       boolean has_conflicts = false
 
-      if (tippInfo.titleId == ctipp.importId) {
+      if (tippInfo.importId == ctipp.importId) {
         tipp_id_match_results << [namespace: 'title_id', value: tippInfo.titleId, match: 'OK']
       }
 
