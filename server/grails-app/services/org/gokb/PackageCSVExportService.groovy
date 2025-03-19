@@ -131,7 +131,7 @@ class PackageCSVExportService {
           if (!force_rewrite || (Duration.between(pkg.lastUpdated.toInstant(), Instant.now()).getSeconds() > 60 && (!latestFileName || pkg.lastUpdated > currentCacheDate))) {
             log.info("createKbartExport :: Package ${pkg}, type: ${exportType}, rewrite: ${force_rewrite}")
 
-            if (latestFileName && !force_rewrite) {
+            if (latestFileName.startsWith(pkg.uuid) && !force_rewrite) {
               CSVReader csv = initReader(path + latestFileName)
 
               String[] header = csv.readNext().collect { it.toLowerCase().trim() }
@@ -174,6 +174,9 @@ class PackageCSVExportService {
 
                 log.debug("createKbartExport :: Old map has ${existingFileMap.keySet().size()} entries!")
               }
+            }
+            else if (!force_rewrite) {
+              log.debug("Full rewrite for old filename ${latestFileName} ..")
             }
 
             def tmpFile = new File("${grailsApplication.config.getProperty('gokb.baseTempDirectory')}${exportFileName}")
