@@ -61,14 +61,20 @@ class Source extends KBComponent {
   public static final String restPath = "/sources"
 
   static jsonMapping = [
+    'ignore'       : [
+      'ruleset',
+      'defaultSupplyMethod',
+      'defaultDataFormat',
+      'ezbMatch',
+      'language',
+      'source'
+    ],
+    'es'           : [],
     'defaultLinks' : [
       'curatoryGroups'
     ],
-    'defaultEmbeds': [],
-    'ignore'       : [
-        'ruleset',
-        'language',
-        'source'
+    'defaultEmbeds': [
+      'curatoryGroups'
     ]
   ]
 

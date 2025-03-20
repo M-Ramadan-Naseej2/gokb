@@ -52,6 +52,7 @@ class ESSearchService{
           "global",
           "editStatus",
           "contentType",
+          "publicationType",
           "status"
       ],
       namespace: [
@@ -790,7 +791,7 @@ class ESSearchService{
       }
 
       if( !errors && exactQuery.hasClauses() ) {
-        if (!params.status) {
+        if (!params.status && (!user || !user.isAdmin())) {
           QueryBuilder statusQuery = QueryBuilders.boolQuery()
           statusQuery.mustNot(QueryBuilders.termQuery('status', 'Deleted'))
           exactQuery.must(statusQuery)

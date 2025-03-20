@@ -401,7 +401,8 @@ class IngestKbartRun {
             groupId     : (job.groupId),
             startTime   : (job.startTime),
             endTime     : (job.endTime),
-            linkedItemId: (job.linkedItem?.id)
+            linkedItemId: (job.linkedItem?.id),
+            importFile  : (datafile)
         ]
 
         def result_object = JobResult.findByUuid(job.uuid)
@@ -756,13 +757,13 @@ class IngestKbartRun {
 
         if (match_result.failed_matches.size() > 0) {
           result.status = 'partial'
-          result.reviewCreated = true
 
           if (!dryRun) {
             def additionalInfo = [otherComponents: []]
             boolean needs_review = false
 
             match_result.failed_matches.each { ct ->
+              boolean isEzbImportId = false
               def matched_ns = []
 
               ct.matchResult.each { mr ->
@@ -771,7 +772,11 @@ class IngestKbartRun {
                 }
               }
 
-              if (matched_ns.size() == 1 && matched_ns[0] == 'ezb') {
+              if (identifiers.find { it -> (it.type == 'ezb') }) {
+                isEzbImportId = true
+              }
+
+              if (matched_ns.size() == 1 && matched_ns[0] == 'title_id' && isEzbImportId) {
                 log.debug("Ignoring EZB-ID match ..")
               }
               else {
@@ -788,6 +793,7 @@ class IngestKbartRun {
 
             // RR für Multimatch generieren
             if (needs_review) {
+              result.reviewCreated = true
               reviewRequestService.raise(
                   tipp,
                   "A KBART record has been matched on an existing package title by some identifiers, but not by other important identifiers.",
@@ -799,6 +805,9 @@ class IngestKbartRun {
                   componentLookupService.findCuratoryGroupOfInterest(tipp, user, activeGroup)
               )
             }
+          }
+          else {
+            result.reviewCreated = true
           }
         }
       }
