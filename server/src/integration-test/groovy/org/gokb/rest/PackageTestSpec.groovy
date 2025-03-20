@@ -15,7 +15,10 @@ import io.micronaut.http.client.BlockingHttpClient
 import io.micronaut.http.client.multipart.MultipartBody
 import io.micronaut.http.uri.UriBuilder
 
+import java.time.Duration
+
 import org.gokb.cred.*
+import org.gokb.TitleLookupService
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.core.io.ClassPathResource
 import org.springframework.core.io.Resource
@@ -30,6 +33,9 @@ class PackageTestSpec extends AbstractAuthSpec {
 
   @Autowired
   WebApplicationContext ctx
+
+  @Autowired
+  TitleLookupService titleLookupService
 
   BlockingHttpClient http
 
@@ -63,6 +69,11 @@ class PackageTestSpec extends AbstractAuthSpec {
         defaultDataFormat: kbart).save(flush: true)
 
     Package testPackage = Package.findByName("TestPack")
+    Package urlTestPackage = Package.findByName("TestPackHandleUrl")
+    Package testPackageError = Package.findByName("TestPackPartialError")
+    Package testPackageInitNoDates = Package.findByName("TestPackInitNoDates")
+    Package testPackageInitWithDates = Package.findByName("TestPackInitWithDates")
+    Package testPackageUpdateDates = Package.findByName("TestPackUpdateDates")
 
     if (!testPackage) {
       testPackage = new Package(name: "TestPack", source: testSource).save(flush: true)
@@ -71,15 +82,40 @@ class PackageTestSpec extends AbstractAuthSpec {
       testPackage.save(flush:true)
     }
 
-    Package urlTestPackage = new Package(name: "TestPackHandleUrl").save(flush: true)
-    urlTestPackage.nominalPlatform = testPlt
-    urlTestPackage.provider = testOrg
-    urlTestPackage.save(flush: true)
+    if (!urlTestPackage) {
+      urlTestPackage = new Package(name: "TestPackHandleUrl").save(flush: true)
+      urlTestPackage.nominalPlatform = testPlt
+      urlTestPackage.provider = testOrg
+      urlTestPackage.save(flush: true)
+    }
 
-    Package partialErrorPackage = new Package(name: "TestPackPartialError").save(flush: true)
-    partialErrorPackage.nominalPlatform = testPlt
-    partialErrorPackage.provider = testOrg
-    partialErrorPackage.save(flush: true)
+    if (!testPackageError) {
+      testPackageError = new Package(name: "TestPackPartialError").save(flush: true)
+      testPackageError.nominalPlatform = testPlt
+      testPackageError.provider = testOrg
+      testPackageError.save(flush: true)
+    }
+
+    if (!testPackageInitNoDates) {
+      testPackageInitNoDates = new Package(name: "TestPackInitNoDates").save(flush: true)
+      testPackageInitNoDates.nominalPlatform = testPlt
+      testPackageInitNoDates.provider = testOrg
+      testPackageInitNoDates.save(flush: true)
+    }
+
+    if (!testPackageInitWithDates) {
+      testPackageInitWithDates = new Package(name: "TestPackInitWithDates").save(flush: true)
+      testPackageInitWithDates.nominalPlatform = testPlt
+      testPackageInitWithDates.provider = testOrg
+      testPackageInitWithDates.save(flush: true)
+    }
+
+    if (!testPackageUpdateDates) {
+      testPackageUpdateDates = new Package(name: "TestPackUpdateDates").save(flush: true)
+      testPackageUpdateDates.nominalPlatform = testPlt
+      testPackageUpdateDates.provider = testOrg
+      testPackageUpdateDates.save(flush: true)
+    }
 
     JournalInstance testTitle = JournalInstance.findByName("PackTestTitle")
 
@@ -157,7 +193,10 @@ class PackageTestSpec extends AbstractAuthSpec {
       "TestPackageWithTipps",
       "TestPackageWithProviderAndPlatform",
       "TestPackHandleUrl",
-      "TestPackPartialError"
+      "TestPackPartialError",
+      "TestPackInitNoDates",
+      "TestPackInitWithDates",
+      "TestPackUpdateDates"
     ].each {
       Package.findByName(it)?.expunge()
     }
@@ -483,7 +522,7 @@ class PackageTestSpec extends AbstractAuthSpec {
     given:
     def urlPath = getUrlPath()
     Resource kbart_file = new ClassPathResource("/test_rest_initial_no_access.txt")
-    Package pkg = Package.findByName("TestPackPartialError")
+    Package pkg = Package.findByName("TestPackInitNoDates")
 
     when:
     String accessToken = getAccessToken()
@@ -512,7 +551,7 @@ class PackageTestSpec extends AbstractAuthSpec {
     given:
     def urlPath = getUrlPath()
     Resource kbart_file = new ClassPathResource("/test_rest_initial_access_dates.txt")
-    Package pkg = Package.findByName("TestPackPartialError")
+    Package pkg = Package.findByName("TestPackInitWithDates")
 
     when:
     String accessToken = getAccessToken()
@@ -525,6 +564,7 @@ class PackageTestSpec extends AbstractAuthSpec {
       )
       .addPart('async', 'false')
       .build()
+
 
     HttpRequest request = HttpRequest.POST("${urlPath}/rest/packages/${pkg.id}/ingest", requestBody)
       .bearerAuth(accessToken)
@@ -545,7 +585,7 @@ class PackageTestSpec extends AbstractAuthSpec {
     def urlPath = getUrlPath()
     Resource kbart_file = new ClassPathResource("/test_rest_initial_no_access.txt")
     Resource kbart_file_update = new ClassPathResource("/test_rest_initial_access_dates.txt")
-    Package pkg = Package.findByName("TestPackPartialError")
+    Package pkg = Package.findByName("TestPackUpdateDates")
 
     when:
     String accessToken = getAccessToken()

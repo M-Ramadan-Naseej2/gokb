@@ -97,7 +97,7 @@ class TitleLookupService {
           boolean title_match = false
 
           // If we find an ID then lookup the components.
-          Set<KBComponent> comp = getComponentsForIdentifier(the_id)
+          Set<KBComponent> comp = getTitlesForIdentifier(the_id, ti_class)
 
           log.debug("Scanning ${comp.size()} components attached to identifier");
           comp.each { KBComponent c ->
@@ -1454,18 +1454,18 @@ class TitleLookupService {
     }
   }
 
-  def getComponentsForIdentifier(identifier) {
-
+  def getTitlesForIdentifier(identifier, ti_class) {
+    log.debug("Get components for ${identifier}")
+    Set result = []
     def status_deleted = RefdataCategory.lookup('KBComponent.Status', 'Deleted')
-    def status_active = DomainClassExtender.comboStatusActive
-    def combo_type = RefdataCategory.lookup('Combo.Type', 'KBComponent.Ids')
-    // was identifier.identifiedComponents
-    KBComponent.executeQuery('''select DISTINCT c.fromComponent from Combo as c
-                                where c.toComponent = :id
-                                and c.type = :tp
-                                and c.fromComponent.status <> :del
-                                and c.status = :act''',
-                                [id: identifier, tp: combo_type, del: status_deleted, act: status_active])
+
+    identifier.activeIdentifiedComponents.each { idc ->
+      if (ti_class.isInstance(ClassUtils.deproxy(idc)) && idc.status != status_deleted) {
+        result << idc
+      }
+    }
+
+    result
   }
 
   def compareIdentifierMaps(ids_one, ids_two) {

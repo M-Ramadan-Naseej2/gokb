@@ -276,7 +276,7 @@ class OaiSpec extends Specification {
       .path("/oai/packages")
       .queryParam('verb', 'GetRecord')
       .queryParam('metadataPrefix', 'gokb')
-      .queryParam('identifier', "org.gokb.cred.Package:$test_pkg.id")
+      .queryParam('identifier', "$test_pkg.uuid")
       .build()
 
     HttpRequest request = HttpRequest.GET(uri)
