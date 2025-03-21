@@ -141,12 +141,12 @@ bootRun {
     sourceResources sourceSets.main
 }
 
-build.doLast {
+war.doFirst {
     // Find the right file
-
-    File grailsBuildInfoFile = (File)it.outputs.files.files.find { it.name == 'grails.build.info' }
+    File grailsBuildInfoFile = file("$buildDir/resources/main/META-INF/grails.build.info")
     File grailsGitInfoFile = file("$buildDir/resources/main/git.properties")
-    if(!grailsBuildInfoFile) {
+
+    if (!grailsBuildInfoFile) {
       println "Build file not found!"
       return // No need to continue if the file is not there
     }
