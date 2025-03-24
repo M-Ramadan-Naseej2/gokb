@@ -131,7 +131,7 @@ class PackageCSVExportService {
           if (!force_rewrite || (Duration.between(pkg.lastUpdated.toInstant(), Instant.now()).getSeconds() > 60 && (!latestFileName || pkg.lastUpdated > currentCacheDate))) {
             log.info("createKbartExport :: Package ${pkg}, type: ${exportType}, rewrite: ${force_rewrite}")
 
-            if (latestFileName.startsWith(pkg.uuid) && !force_rewrite) {
+            if (latestFileName?.startsWith(pkg.uuid) && !force_rewrite) {
               CSVReader csv = initReader(path + latestFileName)
 
               String[] header = csv.readNext().collect { it.toLowerCase().trim() }
@@ -729,7 +729,7 @@ class PackageCSVExportService {
     else {
       if (type in [ExportType.KBART_TIPP, ExportType.KBART_TITLE] ) {
         name.append(toCamelCase(pkg.provider?.name ? pkg.provider.name : "Unknown Provider")).append('_')
-            .append(toCamelCase(pkg.global.value)).append('_')
+            .append(toCamelCase(pkg.global?.value ?: 'Global')).append('_')
             .append(toCamelCase(pkg.name))
             .append(type == ExportType.KBART_TITLE ? '_Processed' : '')
       }

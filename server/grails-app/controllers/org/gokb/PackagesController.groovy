@@ -332,7 +332,7 @@ class PackagesController {
       def type = params.exportType == 'title' ? PackageCSVExportService.ExportType.KBART_TITLE : PackageCSVExportService.ExportType.KBART_TIPP
 
       if (!ids) {
-        response.sattus = 400
+        response.status = 400
       }
       else if (ids.size() == 1) {
         def pkg = Package.findByUuid(ids[0]) ?: (genericOIDService.oidToId(ids[0]) ? Package.get(genericOIDService.oidToId(ids[0])) : null)
