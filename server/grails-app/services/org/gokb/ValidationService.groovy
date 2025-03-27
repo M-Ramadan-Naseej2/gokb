@@ -787,7 +787,7 @@ class ValidationService {
 
       if (parts = final_val =~ /^((?>http[s]?|ftp):\/\/)([^\s\/\?@_]+)(\/[\w\-\/]+\/)*(\/?\??)([^#]+)?(#[\w\-]+)?$/) {
         for (int i = 1; i < parts.groupCount(); i++) {
-          log.debug("Group ${i}: ${parts.group(i)}")
+          // log.debug("Group ${i}: ${parts.group(i)}")
 
           if (parts.group(i)) {
             if (i == 2) {
@@ -838,7 +838,7 @@ class ValidationService {
       }
     }
 
-    log.debug("Final URL to check: ${final_val}")
+    // log.debug("Final URL to check: ${final_val}")
 
     return new UrlValidator().isValid(final_val) ? value : null
   }
