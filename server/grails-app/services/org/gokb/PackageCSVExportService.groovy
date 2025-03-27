@@ -114,7 +114,20 @@ class PackageCSVExportService {
           def existingFileMap = [:]
           File out = new File("${path}${exportFileName}")
           File old_out = new File("${path}${oldExportFileName}")
-          Date currentCacheDate = latestFileName ? dateFormatService.parseTimestamp(latestFileName.substring(latestFileName.length() - 23, latestFileName.length() - 4)) : null
+          boolean existing_ms_accuracy = false
+          Date currentCacheDate
+
+          if (latestFileName) {
+            try {
+              currentCacheDate = dateFormatService.parseTimestampMs(latestFileName.substring(latestFileName.length() - 27, latestFileName.length() - 4))
+              existing_ms_accuracy = true
+            }
+            catch (Exception e) {
+              log.debug("Got old timestamp accuracy")
+
+              currentCacheDate = dateFormatService.parseTimestamp(latestFileName.substring(latestFileName.length() - 23, latestFileName.length() - 4))
+            }
+          }
 
           if (!force_rewrite && out.isFile()) {
             // log.debug("createKbartExport :: Current file for new uuid pattern ${exportFileName} already exists!")
@@ -128,7 +141,13 @@ class PackageCSVExportService {
 
           log.debug("Existing file: ${latestFileName}")
 
-          if (!force_rewrite || (Duration.between(pkg.lastUpdated.toInstant(), Instant.now()).getSeconds() > 60 && (!latestFileName || pkg.lastUpdated > currentCacheDate))) {
+          if (!force_rewrite ||
+              (Duration.between(pkg.lastUpdated.toInstant(), Instant.now()).getSeconds() > 60 &&
+                (!latestFileName ||
+                  pkg.lastUpdated.toInstant() > (existing_ms_accuracy ? currentCacheDate.toInstant() : currentCacheDate.toInstant().plusSeconds(1))
+                )
+              )
+          ){
             log.info("createKbartExport :: Package ${pkg}, type: ${exportType}, rewrite: ${force_rewrite}")
 
             if (latestFileName?.startsWith(pkg.uuid) && !force_rewrite) {
@@ -337,7 +356,20 @@ class PackageCSVExportService {
         def existingFileMap = [:]
         File out = new File("${path}${exportFileName}")
         File old_out = new File("${path}${oldExportFileName}")
-        Date currentCacheDate = latestFileName ? dateFormatService.parseTimestamp(latestFileName.substring(latestFileName.length() - 23, latestFileName.length() - 4)) : null
+        Date currentCacheDate
+        boolean existing_ms_accuracy = false
+
+        if (latestFileName) {
+          try {
+            currentCacheDate = dateFormatService.parseTimestampMs(latestFileName.substring(latestFileName.length() - 27, latestFileName.length() - 4))
+            existing_ms_accuracy = true
+          }
+          catch (Exception e) {
+            log.error("Got old timestamp accuracy", e)
+
+            currentCacheDate = dateFormatService.parseTimestamp(latestFileName.substring(latestFileName.length() - 23, latestFileName.length() - 4))
+          }
+        }
 
         if (!force_rewrite && out.isFile()) {
           // log.debug("createTsvExport :: Current file for new uuid pattern ${exportFileName} already exists!")
@@ -349,7 +381,13 @@ class PackageCSVExportService {
           return result
         }
 
-        if (!force_rewrite || (Duration.between(pkg.lastUpdated.toInstant(), Instant.now()).getSeconds() > 60 && (!latestFileName || pkg.lastUpdated > currentCacheDate))) {
+        if (!force_rewrite ||
+            (Duration.between(pkg.lastUpdated.toInstant(), Instant.now()).getSeconds() > 60 &&
+              (!latestFileName ||
+                pkg.lastUpdated.toInstant() > (existing_ms_accuracy ? currentCacheDate.toInstant() : currentCacheDate.toInstant().plusSeconds(1))
+              )
+            )
+        ) {
           log.info("createTsvExport :: Caching start for Package ${pkg}, rewrite: ${force_rewrite}")
 
           if (latestFileName && !force_rewrite) {
@@ -742,7 +780,7 @@ class PackageCSVExportService {
       name.append('_')
 
       if (full_timestamp) {
-        name.append(dateFormatService.formatTimestamp(pkg.lastUpdated))
+        name.append(dateFormatService.formatTimestampMs(pkg.lastUpdated))
       }
       else {
         name.append(dateFormatService.formatDate(pkg.lastUpdated))
