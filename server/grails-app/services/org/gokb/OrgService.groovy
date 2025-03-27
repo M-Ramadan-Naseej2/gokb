@@ -477,23 +477,25 @@ class OrgService {
       RefdataValue role_obj = null
 
       if (nr instanceof Integer) {
-        RefdataValue role_rdv = RefdataValue.get(nr)
-
-        if (role_rdv && role_obj.owner == category) {
-          new_roles << role_rdv
-        }
-        else {
-          result.errors << [message: "Unable to reference org role!", baddata: nr]
-        }
+        role_obj = RefdataValue.get(nr)
       }
       else if (nr instanceof String) {
         role_obj = RefdataCategory.lookup('Org.Role', nr)
       }
       else if (nr instanceof Map) {
-        role_obj = RefdataCategory.get(nr.id)
+        role_obj = RefdataValue.get(nr.id)
       }
 
-      if (role_obj && !old_roles.contains(role_obj)) {
+      if (role_obj && role_obj.owner == category) {
+        new_roles << role_obj
+      }
+      else {
+        result.errors << [message: "Unable to reference org role!", baddata: nr]
+      }
+    }
+
+    new_roles.each { nr ->
+      if (!old_roles.contains(nr)) {
         org.addToRoles(role_obj)
         result.changed = true
       }
