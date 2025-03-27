@@ -365,7 +365,7 @@ class PackageCSVExportService {
             existing_ms_accuracy = true
           }
           catch (Exception e) {
-            log.error("Got old timestamp accuracy", e)
+            log.debug("Got old timestamp accuracy")
 
             currentCacheDate = dateFormatService.parseTimestamp(latestFileName.substring(latestFileName.length() - 23, latestFileName.length() - 4))
           }
