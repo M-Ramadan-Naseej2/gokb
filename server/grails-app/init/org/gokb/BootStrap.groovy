@@ -384,6 +384,8 @@ class BootStrap {
                 registerPkgCache()
             }
 
+            cleanupOrgNamespaces()
+
             log.debug("Ensuring ElasticSearch index")
             ensureEsIndices()
 
@@ -543,6 +545,20 @@ class BootStrap {
             p = new Org(name: name)
             p.tags.add(content_provider_role);
             p.save(flush: true);
+        }
+    }
+
+    def cleanupOrgNamespaces() {
+        def orgs_with_title_ns = Org.executeQuery("from Org as o where o.titleNamespace is not null")
+
+        orgs_with_title_ns.each { org ->
+            if (!org.titleNamespaceSerial && !org.titleNamespaceMonograph) {
+                org.titleNamespaceSerial = org.titleNamespace
+                org.titleNamespaceMonograph = org.titleNamespace
+            }
+
+            org.titleNamespace = null
+            org.save(flush: true)
         }
     }
 

@@ -1084,12 +1084,6 @@ class PackageService {
           src = Source.get(sourceMap.id)
         }
         else {
-          def namespace = null
-
-          if (sourceMap.targetNamespace instanceof Integer) {
-            namespace = IdentifierNamespace.get(sourceMap.targetNamespace)
-          }
-
           if (!result.source || result.source.name != result.name) {
             def source_config = [
                 name           : result.name,
@@ -1097,7 +1091,9 @@ class PackageService {
                 frequency      : sourceMap.frequency,
                 ezbMatch       : (sourceMap.ezbMatch ?: false),
                 automaticUpdate: (sourceMap.automaticUpdate ?: false),
-                targetNamespace: namespace
+                targetNamespace: sourceMap.targetNamespace instanceof Integer ? IdentifierNamespace.get(sourceMap.targetNamespace) : null,
+                titleIdSerial: sourceMap.titleIdSerial instanceof Integer ? IdentifierNamespace.get(sourceMap.titleIdSerial) : null,
+                titleIdMonograph: sourceMap.titleIdMonograph instanceof Integer ? IdentifierNamespace.get(sourceMap.titleIdMonograph) : null
             ]
 
             src = new Source(source_config).save(flush: true)
@@ -1114,8 +1110,18 @@ class PackageService {
             changed |= ClassUtils.setBooleanIfDifferent(src, 'ezbMatch', sourceMap.ezbMatch)
             changed |= ClassUtils.setBooleanIfDifferent(src, 'automaticUpdate', sourceMap.automaticUpdate)
 
-            if (namespace && namespace != src.targetNamespace) {
-              src.targetNamespace = namespace
+            if (sourceMap.targetNamespace instanceof Integer && IdentifierNamespace.get(sourceMap.targetNamespace) != src.targetNamespace) {
+              src.targetNamespace = IdentifierNamespace.get(sourceMap.targetNamespace)
+              changed = true
+            }
+
+            if (sourceMap.titleIdSerial instanceof Integer && IdentifierNamespace.get(sourceMap.titleIdSerial) != src.titleIdSerial) {
+              src.titleIdSerial = IdentifierNamespace.get(sourceMap.titleIdSerial)
+              changed = true
+            }
+
+            if (sourceMap.titleIdMonograph instanceof Integer && IdentifierNamespace.get(sourceMap.titleIdMonograph) != src.titleIdSerial) {
+              src.titleIdMonograph = IdentifierNamespace.get(sourceMap.titleIdMonograph)
               changed = true
             }
 

@@ -873,6 +873,8 @@ class TippService {
       if (title_class_name) {
         TitleInstance ti = null
 
+        log.debug("TI Lookup ..")
+
         def found = titleLookupService.find(
             tipp.name,
             tipp.getPublisherName(),
@@ -1030,8 +1032,8 @@ class TippService {
         'medium', 'language'
     ], tipp, ti)
 
-    def firstInPrint = tipp.dateFirstInPrint ? GOKbTextUtils.completeDateString(tipp.dateFirstInPrint.format('yyyy-MM-dd')) : null
-    def firstOnline = tipp.dateFirstOnline ? GOKbTextUtils.completeDateString(tipp.dateFirstOnline.format('yyyy-MM-dd')) : null
+    def firstInPrint = tipp.dateFirstInPrint ? GOKbTextUtils.completeDateString(dateFormatService.formatDate(tipp.dateFirstInPrint)) : null
+    def firstOnline = tipp.dateFirstOnline ? GOKbTextUtils.completeDateString(dateFormatService.formatDate(tipp.dateFirstOnline)) : null
 
     title_changed |= ti.hasProperty('dateFirstInPrint') ? ClassUtils.updateDateField(firstInPrint, ti, 'dateFirstInPrint') : false
     title_changed |= ti.hasProperty('dateFirstOnline') ? ClassUtils.updateDateField(firstOnline, ti, 'dateFirstOnline') : false
