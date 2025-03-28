@@ -141,7 +141,7 @@ class PackageCSVExportService {
 
           log.debug("Existing file: ${latestFileName}")
 
-          if (!force_rewrite ||
+          if (force_rewrite ||
               (Duration.between(pkg.lastUpdated.toInstant(), Instant.now()).getSeconds() > 60 &&
                 (!latestFileName ||
                   pkg.lastUpdated.toInstant() > (existing_ms_accuracy ? currentCacheDate.toInstant() : currentCacheDate.toInstant().plusSeconds(1))
@@ -381,7 +381,7 @@ class PackageCSVExportService {
           return result
         }
 
-        if (!force_rewrite ||
+        if (force_rewrite ||
             (Duration.between(pkg.lastUpdated.toInstant(), Instant.now()).getSeconds() > 60 &&
               (!latestFileName ||
                 pkg.lastUpdated.toInstant() > (existing_ms_accuracy ? currentCacheDate.toInstant() : currentCacheDate.toInstant().plusSeconds(1))
