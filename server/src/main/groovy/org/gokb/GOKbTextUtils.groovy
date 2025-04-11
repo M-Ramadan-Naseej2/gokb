@@ -232,7 +232,7 @@ class GOKbTextUtils {
             result = LocalDate.parse(datepart + "-01", dateformatter).atStartOfDay()
           }
           else {
-            result = LocalDate.parse(datepart + "-31", dateformatter).atStartOfDay()
+            result = LocalDate.parse(datepart + "-01", dateformatter).atStartOfDay()
           }
         }
         else if ( datepart.length() == 10 ) {
