@@ -95,6 +95,9 @@ grails:
         springsecurity:
             rest:
                 token:
+                    storage:
+                        jwt:
+                            secret: ${JWT_SECRET:SHGSLHGSLKFGSIERHGJHjkdhgsjdhgsjdfgsjgsigsjdfbgsbgsdhgskdhjgsklghslkdfjhdgsjlk}
                     validation:
                         endpointUrl: /rest/validate
                 login:
@@ -138,9 +141,9 @@ environments:
     development:
         dataSource:
             dbCreate: update
-            url: jdbc:postgresql://pghost:5432/gokbdev
-            username: knowint
-            password: knowint
+            url: jdbc:postgresql://${DB_HOST:172.17.0.1}:${DB_PORT:5432}/${DB_NAME:postgres}
+            username: ${DB_USER:postgres}
+            password: ${DB_PASS:pa55w0rd}
             driverClassName: org.postgresql.Driver
             dialect: org.hibernate.dialect.PostgreSQLDialect
             defaultTransactionIsolation: java.sql.Connection.TRANSACTION_READ_COMMITTED
@@ -190,7 +193,7 @@ environments:
                 enabled: false
                 url: https://ezb-api.ur.de/collections/v1/
             es:
-                host: localhost
+                host: ${ES_HOST:172.17.0.1}
                 ports:
                     - 9200
                 indices:
@@ -284,9 +287,9 @@ environments:
     production:
         dataSource:
             dbCreate: update
-            url: jdbc:postgresql://localhost:5432/gokbprod
-            username: gokb
-            password: knowint
+            url: jdbc:postgresql://${DB_HOST:172.17.0.1}:${DB_PORT:5432}/${DB_NAME:postgres}
+            username: ${DB_USER:postgres}
+            password: ${DB_PASS:pa55w0rd}
             driverClassName: org.postgresql.Driver
             dialect: org.hibernate.dialect.PostgreSQLDialect
             defaultTransactionIsolation: java.sql.Connection.TRANSACTION_READ_COMMITTED
@@ -329,7 +332,7 @@ environments:
             ygorUrl: null
             languagesUrl : null
             es:
-                host: localhost
+                host: ${ES_HOST:172.17.0.1}
                 ports:
                     - 9200
                 indices:
