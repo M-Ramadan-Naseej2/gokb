@@ -1,0 +1,19 @@
+trigger:
+  - develop
+
+pool: 'TfsOracle'
+
+steps:
+
+  - task: Docker@2
+    inputs:
+      containerRegistry: 'Naseej Docker Hub-Medad Content Plus'
+      command: 'login'
+
+  - task: Docker@2
+    inputs:
+      containerRegistry: 'Naseej Docker Hub-Medad Content Plus'
+      repository: 'axhxgarudf1b/gokb'
+      command: 'buildAndPush'
+      tags: '1.0.1'
+      Dockerfile: '**/Dockerfile'
