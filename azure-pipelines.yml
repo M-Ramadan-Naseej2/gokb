@@ -6,11 +6,11 @@ pool: 'TfsOracle'
 steps:
 - task: Docker@2
   inputs:
-    containerRegistry: 'Production Environment'
+    containerRegistry: 'Naseej Production Docker Registry'
     command: 'login'
 - task: Docker@2
   inputs:
-    containerRegistry: 'Production Environment'
+    containerRegistry: 'Naseej Production Docker Registry'
     repository: 'naseejsa/gokb'
     command: 'buildAndPush'
     tags: '1.0.1'
