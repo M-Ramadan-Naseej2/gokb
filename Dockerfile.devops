@@ -1,0 +1,26 @@
+FROM python:slim-buster
+
+ARG tag
+ARG GIT_USER
+ARG GIT_EMAIL
+ARG REPO
+ARG APP
+
+RUN apt-get update && apt-get install -y git wget jq
+RUN pip install -U commitizen 
+RUN wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+RUN chmod a+x /usr/local/bin/yq
+RUN git config --global --add safe.directory /code
+RUN git config --global user.email ${GIT_EMAIL} && git config --global user.name ${GIT_USER}
+
+WORKDIR /code
+
+RUN mkdir ~/.ssh/ && ssh-keyscan -t rsa tfs.aas.com.sa>> ~/.ssh/known_hosts
+RUN --mount=type=ssh,uid=1000  git clone ${REPO}/${APP} --branch main --origin upstream \
+    && cd ${APP} \
+    && cp commitizen.conf pyproject.toml \
+    && cz bump > /code/env \
+    && cat /code/env \
+    && git push -f --tags ${REPO}/${APP} HEAD:main \
+    && git push -f --tags ${REPO}/${APP} HEAD:develop \
+    && cz changelog
