@@ -78,7 +78,7 @@ stages:
           connectionType: "Kubernetes Service Connection"
           kubernetesServiceEndpoint: "k8s-stage-Medad Content Plus"
           command: "set"
-          arguments: "image deployment/gokb   gokb=jed.ocir.io/axhxgarudf1b/$(docker_repository):$(tag)"
+          arguments: "image deployment/gokb   container-0=jed.ocir.io/axhxgarudf1b/$(docker_repository):$(tag)"
           namespace: "content-plus"
 - stage: docker_scan
   dependsOn: 
