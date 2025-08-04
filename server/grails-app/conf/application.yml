@@ -1,4 +1,12 @@
 ---
+management:
+    endpoints:
+        web:
+            exposure:
+                include: health,info
+    endpoint:
+        health:
+            show-details: always
 grails:
     config:
         locations:
@@ -159,6 +167,7 @@ environments:
                 validationQuery: select 1
                 defaultTransactionIsolation: java.sql.Connection.TRANSACTION_READ_COMMITTED
         grails:
+            serverURL: ${SERVER_URL:http://localhost:8080/gokb}
             logging:
                 plugin:
                     springsecurity:
@@ -273,6 +282,7 @@ environments:
                 enabled: false
                 url: https://ezb-api.ur.de/collections/v1/
         grails:
+            serverURL: ${SERVER_URL:http://localhost:8080/gokb}
             mail:
                 port: 3025
         quartz:
@@ -305,6 +315,7 @@ environments:
                 validationQuery: select 1
                 defaultTransactionIsolation: java.sql.Connection.TRANSACTION_READ_COMMITTED
         grails:
+            serverURL: ${SERVER_URL:http://localhost:8080/gokb}
             plugin:
                 greenmail:
                     disabled: true

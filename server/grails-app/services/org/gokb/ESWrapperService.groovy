@@ -33,16 +33,14 @@ class ESWrapperService {
 
 
   def getSettings() {
-    File settingsFile = new File(getClass().getResource(
-        "${File.separator}elasticsearch${File.separator}es_settings.json").toURI())
-    return new JsonSlurper().parse(settingsFile)
+    InputStream settingsStream = getClass().getResourceAsStream('/elasticsearch/es_settings.json')
+    return new JsonSlurper().parse(settingsStream)
   }
 
 
   def getMapping() {
-    File mappingFile = new File(getClass().getResource(
-        "${File.separator}elasticsearch${File.separator}es_mapping.json").toURI())
-    return new JsonSlurper().parse(mappingFile)
+    InputStream mappingStream = getClass().getResourceAsStream('/elasticsearch/es_mapping.json')
+    return new JsonSlurper().parse(mappingStream)
   }
 
 

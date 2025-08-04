@@ -103,9 +103,9 @@ order by f.id, ti.id, title_in_group.id
     result.serverUrl = grailsApplication.config.getProperty('grails.serverURL') ?: 'http://localhost:8080/gokb'
     result.updates = getTippsInUserWatchList(user, startDate, endDate)
 
-    def emailTemplateFile = applicationContext.getResource("WEB-INF/mail-templates/gokbAlerts.gsp").file
+    def emailTemplateStream = applicationContext.getResource("WEB-INF/mail-templates/gokbAlerts.gsp").inputStream
     def engine = new SimpleTemplateEngine()
-    def tmpl = engine.createTemplate(emailTemplateFile).make(result)
+    def tmpl = engine.createTemplate(emailTemplateStream.getText('UTF-8')).make(result)
     def alerts_address = grailsApplication.config.getProperty('gokb.alerts.emailFrom')
     def content = tmpl.toString()
     EmailValidator validator = EmailValidator.getInstance()

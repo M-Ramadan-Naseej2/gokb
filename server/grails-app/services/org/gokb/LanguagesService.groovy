@@ -18,8 +18,8 @@ class LanguagesService{
 
   @Transactional
   public void initialize(){
-    File languageFile = new File(getClass().getResource("${File.separator}languages${File.separator}languages.json").toURI())
-    languages = new JsonSlurper().parse(languageFile)
+    InputStream languageStream = getClass().getResourceAsStream('/languages/languages.json')
+    languages = new JsonSlurper().parse(languageStream)
 
     for (def entry in languages){
       RefdataCategory.lookupOrCreate(KBComponent.RD_LANGUAGE, entry.key, entry.key)
