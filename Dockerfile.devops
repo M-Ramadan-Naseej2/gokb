@@ -1,4 +1,4 @@
-FROM python:slim-buster
+FROM python:3.11-slim-bookworm
 
 ARG tag
 ARG GIT_USER
@@ -11,11 +11,13 @@ RUN pip install -U commitizen
 RUN wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
 RUN chmod a+x /usr/local/bin/yq
 RUN git config --global --add safe.directory /code
-RUN git config --global user.email ${GIT_EMAIL} && git config --global user.name ${GIT_USER}
+RUN git config --global user.email "${GIT_EMAIL}" && git config --global user.name "${GIT_USER}"
 
 WORKDIR /code
 
-RUN mkdir ~/.ssh/ && ssh-keyscan -t rsa tfs.aas.com.sa>> ~/.ssh/known_hosts
+RUN mkdir -p ~/.ssh/ \
+    && ssh-keyscan -t rsa tfs.aas.com.sa >> ~/.ssh/known_hosts \
+    && echo "Host tfs.aas.com.sa\n\tHostkeyAlgorithms +ssh-rsa\n\tPubkeyAcceptedAlgorithms +ssh-rsa" >> /etc/ssh/ssh_config
 RUN --mount=type=ssh,uid=1000  git clone ${REPO}/${APP} --branch main --origin upstream \
     && cd ${APP} \
     && cp commitizen.conf pyproject.toml \
