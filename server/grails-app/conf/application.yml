@@ -205,6 +205,10 @@ environments:
                 host: ${ES_HOST:172.17.0.1}
                 ports:
                     - 9200
+                scheme: ${ES_SCHEME:http}
+                username: ${ES_USERNAME:}
+                password: ${ES_PASSWORD:}
+                cluster: ${ES_CLUSTER:elasticsearch}
                 indices:
                     titles: gokbtitles
                     tipps: gokbtipps
@@ -270,6 +274,10 @@ environments:
                 host: localhost
                 ports:
                     - 9200
+                scheme: ${ES_SCHEME:http}
+                username: ${ES_USERNAME:}
+                password: ${ES_PASSWORD:}
+                cluster: ${ES_CLUSTER:elasticsearch}
                 indices:
                     titles: gokbtitlestest
                     tipps: gokbtippstest
@@ -346,6 +354,10 @@ environments:
                 host: ${ES_HOST:172.17.0.1}
                 ports:
                     - 9200
+                scheme: ${ES_SCHEME:http}
+                username: ${ES_USERNAME:}
+                password: ${ES_PASSWORD:}
+                cluster: ${ES_CLUSTER:elasticsearch}
                 indices:
                     titles: gokbtitles
                     tipps: gokbtipps
