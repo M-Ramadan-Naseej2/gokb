@@ -3,7 +3,12 @@ package org.gokb
 
 import groovy.json.JsonSlurper
 import org.apache.http.HttpHost
+import org.apache.http.auth.AuthScope
+import org.apache.http.auth.UsernamePasswordCredentials
+import org.apache.http.client.CredentialsProvider
+import org.apache.http.impl.client.BasicCredentialsProvider
 import org.opensearch.client.RestClient
+import org.opensearch.client.RestClientBuilder
 import org.opensearch.client.RestHighLevelClient
 
 import static groovy.json.JsonOutput.*
@@ -33,26 +38,48 @@ class ESWrapperService {
 
 
   def getSettings() {
-    File settingsFile = new File(getClass().getResource(
-        "${File.separator}elasticsearch${File.separator}es_settings.json").toURI())
-    return new JsonSlurper().parse(settingsFile)
+    InputStream settingsStream = getClass().getResourceAsStream('/elasticsearch/es_settings.json')
+    return new JsonSlurper().parse(settingsStream)
   }
 
 
   def getMapping() {
-    File mappingFile = new File(getClass().getResource(
-        "${File.separator}elasticsearch${File.separator}es_mapping.json").toURI())
-    return new JsonSlurper().parse(mappingFile)
+    InputStream mappingStream = getClass().getResourceAsStream('/elasticsearch/es_mapping.json')
+    return new JsonSlurper().parse(mappingStream)
   }
 
 
   private void newClient() {
     def es_host_name = grailsApplication.config.getProperty('gokb.es.host')
     def es_port = grailsApplication.config.getProperty('gokb.es.ports', Collection).get(0) ?: 9200
+    def es_scheme = grailsApplication.config.getProperty('gokb.es.scheme', String, 'http')
+    def es_username = grailsApplication.config.getProperty('gokb.es.username')
+    def es_password = grailsApplication.config.getProperty('gokb.es.password')
 
     log.debug("Elasticsearch client is null, creating now... host: ${es_host_name}")
-    log.debug("... looking for Elasticsearch on host ${es_host_name}")
-    esClient = new RestHighLevelClient(RestClient.builder(new HttpHost(es_host_name, es_port, "http")))
+    log.debug("... looking for Elasticsearch on host ${es_host_name}:${es_port} with scheme ${es_scheme}")
+
+    HttpHost httpHost = new HttpHost(es_host_name, es_port, es_scheme)
+    RestClientBuilder builder = RestClient.builder(httpHost)
+
+    // Add authentication if username and password are provided
+    if (es_username && es_password) {
+      log.debug("... configuring Elasticsearch authentication for user: ${es_username}")
+
+      final CredentialsProvider credentialsProvider = new BasicCredentialsProvider()
+      credentialsProvider.setCredentials(
+        AuthScope.ANY,
+        new UsernamePasswordCredentials(es_username, es_password)
+      )
+
+      builder.setHttpClientConfigCallback { httpClientBuilder ->
+        httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider)
+      }
+    } else {
+      log.debug("... no Elasticsearch authentication configured")
+    }
+
+    esClient = new RestHighLevelClient(builder)
     log.debug("... Elasticsearch wrapper service init completed")
   }
 

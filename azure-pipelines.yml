@@ -1,109 +1,19 @@
 trigger:
-  branches:
-    include:
-      - main
-   
-  paths:
-    exclude:
-      - commitizen.conf
- 
+  - develop
+
 pool: 'TfsOracle'
 
-variables:
-  repo: ssh://tfs.aas.com.sa:22/Medad/Medad%20Content%20Plus/_git
-  docker_repository: gokb
-  isDev: $[eq(variables['build.sourceBranch'], 'refs/heads/develop')]
-  isMain: $[eq(variables['build.sourceBranch'], 'refs/heads/main')]
+steps:
 
-resources:
-  repositories:
-  - repository: medad_devops
-    type: git
-    name: Medad DevOps/medad_devops
+  - task: Docker@2
+    inputs:
+      containerRegistry: 'Naseej Docker Hub-Medad Content Plus'
+      command: 'login'
 
-stages:
-- stage: AutoVersion
-  displayName: Generate new verion and release notes
-  condition: eq(variables.isMain, true)
-  jobs:
-    - job: autoversion
-      steps:
-        - template: autoversion.yml@medad_devops
-        
-- stage: Build
-  condition: or(eq(variables.isDev, true),and( succeeded('Autoversion'), eq(variables.isMain, true)))
-  jobs:
-    - job: BuildImage
-      displayName: Build and push the image
-      variables: 
-        tag: $[ stageDependencies.AutoVersion.autoversion.outputs['passOutput.tag'] ]
-      steps:
-        - task: Docker@2
-          inputs:
-            containerRegistry: 'Naseej Docker Hub'
-            command: 'login'
-
-        - task: Docker@2
-          inputs:
-            containerRegistry: 'Naseej Docker Hub'
-            repository: 'axhxgarudf1b/$(docker_repository)'
-            command: 'build'
-            tags: $(tag)
-            Dockerfile: '**/Dockerfile'
-          
-
-        - task: Docker@2
-          displayName: "Push - Medad Image"
-          inputs:
-            containerRegistry: "Naseej Docker Hub"
-            repository: axhxgarudf1b/$(docker_repository)
-            command: push
-            tags: $(tag)
-
-- stage: Stage
-  condition: and(succeeded('Build'), eq(variables.isMain, true))
-  displayName: Deploy to stage
-  dependsOn: 
-    - AutoVersion
-    - Build
-  jobs:
-  - job: DeployStg
-    displayName: Deploy to stage
-    variables: 
-      tag: $[ stageDependencies.AutoVersion.autoversion.outputs['passOutput.tag'] ]
-    steps:
-      - task: Kubernetes@1
-        displayName: Deploy content-plus
-        inputs:
-          connectionType: "Kubernetes Service Connection"
-          kubernetesServiceEndpoint: "k8s-stage-Medad Content Plus"
-          command: "set"
-          arguments: "image deployment/gokb   container-0=jed.ocir.io/axhxgarudf1b/$(docker_repository):$(tag)"
-          namespace: "content-plus"
-- stage: docker_scan
-  dependsOn: 
-    - AutoVersion
-    - Build
-  jobs:
-  - job: 
-    variables: 
-     tag: $[ stageDependencies.AutoVersion.autoversion.outputs['passOutput.tag'] ]
-    steps: 
-          - script: |
-              mkdir ~/tmp
-              export DOCKER_SCOUT_CACHE_DIR=~/tmp
-              echo "Installing Docker Scout CLI..."
-              curl -sSfL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
-              docker login -u $(DOCKER_HUB_USER) -p $(DOCKER_HUB_PAT)
-              echo "Scanning the image for CVEs..."
-              ~/.docker/cli-plugins/docker-scout cves jed.ocir.io/axhxgarudf1b/$(docker_repository):$(tag)  --only-fixed --only-severity critical,high --format markdown --output markdown.html
-              rm -rf ~/tmp/
-            displayName: 'Scan Image for CVEs'
-            condition: eq(variables.isMain, true)
-
-          - task: publishhtmlreport@1
-            condition: eq(variables.isMain, true)
-            displayName: 'Publish docker scan report'
-            inputs:
-              htmlType: 'genericHTML'
-              htmlPath: '$(System.DefaultWorkingDirectory)/markdown.html'
+  - task: Docker@2
+    inputs:
+      containerRegistry: 'Naseej Docker Hub-Medad Content Plus'
+      repository: 'axhxgarudf1b/gokb'
+      command: 'buildAndPush'
+      tags: '1.0.3'
+      Dockerfile: '**/Dockerfile'

@@ -1,4 +1,12 @@
 ---
+management:
+    endpoints:
+        web:
+            exposure:
+                include: health,info
+    endpoint:
+        health:
+            show-details: always
 grails:
     config:
         locations:
@@ -159,6 +167,7 @@ environments:
                 validationQuery: select 1
                 defaultTransactionIsolation: java.sql.Connection.TRANSACTION_READ_COMMITTED
         grails:
+            serverURL: ${SERVER_URL:http://localhost:8080/gokb}
             logging:
                 plugin:
                     springsecurity:
@@ -196,6 +205,10 @@ environments:
                 host: ${ES_HOST:172.17.0.1}
                 ports:
                     - 9200
+                scheme: ${ES_SCHEME:http}
+                username: ${ES_USERNAME:}
+                password: ${ES_PASSWORD:}
+                cluster: ${ES_CLUSTER:elasticsearch}
                 indices:
                     titles: gokbtitles
                     tipps: gokbtipps
@@ -261,6 +274,10 @@ environments:
                 host: localhost
                 ports:
                     - 9200
+                scheme: ${ES_SCHEME:http}
+                username: ${ES_USERNAME:}
+                password: ${ES_PASSWORD:}
+                cluster: ${ES_CLUSTER:elasticsearch}
                 indices:
                     titles: gokbtitlestest
                     tipps: gokbtippstest
@@ -273,6 +290,7 @@ environments:
                 enabled: false
                 url: https://ezb-api.ur.de/collections/v1/
         grails:
+            serverURL: ${SERVER_URL:http://localhost:8080/gokb}
             mail:
                 port: 3025
         quartz:
@@ -305,6 +323,7 @@ environments:
                 validationQuery: select 1
                 defaultTransactionIsolation: java.sql.Connection.TRANSACTION_READ_COMMITTED
         grails:
+            serverURL: ${SERVER_URL:http://localhost:8080/gokb}
             plugin:
                 greenmail:
                     disabled: true
@@ -335,6 +354,10 @@ environments:
                 host: ${ES_HOST:172.17.0.1}
                 ports:
                     - 9200
+                scheme: ${ES_SCHEME:http}
+                username: ${ES_USERNAME:}
+                password: ${ES_PASSWORD:}
+                cluster: ${ES_CLUSTER:elasticsearch}
                 indices:
                     titles: gokbtitles
                     tipps: gokbtipps
