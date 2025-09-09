@@ -1,12 +1,12 @@
 # ---- Build Stage ----
-FROM gradle:7.6.2-jdk11 AS build
+FROM gradle:8.10.1-jdk17 AS build
 WORKDIR /build
 COPY . .
 WORKDIR /build/server
-RUN ./gradlew clean bootJar
+RUN ./gradlew --no-daemon clean bootJar
 
 # ---- Production Stage ----
-FROM gcr.io/distroless/java11-debian11:nonroot
+FROM gcr.io/distroless/java17-debian11:nonroot
 WORKDIR /app
 COPY --from=build /build/server/build/libs/*.jar app.jar
 

@@ -37,6 +37,12 @@ apply plugin:"org.grails.grails-doc"
 // Fixing too long classpath in Windows development environment
 apply plugin: "ua.eshepelyuk.ManifestClasspath"
 
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
 allprojects {
     repositories {
         mavenCentral()
@@ -101,15 +107,15 @@ dependencies {
     implementation 'org.grails.plugins:spring-security-rest:5.0.1'
     implementation 'commons-fileupload:commons-fileupload:1.5'
 
-    implementation 'commons-io:commons-io:2.13.0'
-    implementation 'org.apache.commons:commons-compress:1.23.0'
+    implementation 'commons-io:commons-io:2.15.1'
+    implementation 'org.apache.commons:commons-compress:1.26.2'
     implementation 'commons-validator:commons-validator:1.9.0'
-    implementation 'com.opencsv:opencsv:5.7.1'
+    implementation 'com.opencsv:opencsv:5.9'
     implementation 'com.github.ladutsko:isbn-core:1.5.3'
     implementation 'joda-time:joda-time:2.13.0'
     implementation 'org.opensearch:opensearch:2.19.1'
     implementation 'org.opensearch.client:opensearch-rest-high-level-client:2.19.1'
-    implementation 'com.fasterxml.jackson.core:jackson-core:2.18.0'
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.18.2'
     implementation 'org.locationtech.spatial4j:spatial4j:0.8'
     implementation 'org.slf4j:log4j-over-slf4j:2.0.16'
     implementation 'org.apache.tika:tika-core:2.9.2'
